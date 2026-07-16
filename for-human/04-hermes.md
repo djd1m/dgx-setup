@@ -16,6 +16,70 @@ Hermes — самообучающийся агент от [Nous Research](https:
 
 ---
 
+## Три способа запуска — не перепутай
+
+Hermes можно развернуть по-разному, и это первое, что стоит решить.
+
+| Способ | Где живёт **сам Hermes** | Когда брать |
+|---|---|---|
+| **curl-инсталлятор** (эта инструкция) | **на хосте**, venv в `~/.hermes/` | по умолчанию |
+| Официальный образ `nousresearch/hermes-agent` | в контейнере, данные в `/opt/data` | свой Docker |
+| **Через [NemoClaw](03-nemoclaw.md)** | **в песочнице OpenShell** | нужна изоляция всего агента |
+
+### Четвёртый слой, который путают чаще всего
+
+Отдельно от этого у Hermes настраивается **terminal backend** — он решает, где выполняются
+**команды агента**, а не где живёт сам Hermes. Их шесть: `local`, `docker`, `ssh`,
+`singularity`, `modal`, `daytona`.
+
+То есть Hermes может стоять на хосте, а команды гонять в контейнере:
+
+```yaml
+terminal:
+  backend: docker
+```
+
+Дословно: *«the agent runs on your host but executes every command inside a single,
+persistent Docker sandbox»* — [docker.md](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/docker.md).
+
+**Практический вывод.** Если задача — «чтобы агент не сломал систему командой», хватает
+`backend: docker`, и NemoClaw не нужен. NemoClaw добавляет другое: изоляцию **самого
+процесса** Hermes и **сетевую политику**.
+
+### Вариант с NemoClaw
+
+Если всё же нужен NemoClaw — Hermes там запускается **внутри песочницы OpenShell**.
+Дословно: *«Create a **sandboxed** Hermes agent, then chat with it from the dashboard or
+terminal»* — [quickstart NemoClaw для Hermes](https://docs.nvidia.com/nemoclaw/user-guide/hermes/get-started/quickstart.md).
+
+Ключевое отличие от [инструкции 03](03-nemoclaw.md) — переменная `NEMOCLAW_AGENT`:
+
+```bash
+curl -fsSL https://www.nvidia.com/nemoclaw.sh | \
+  NEMOCLAW_INSTALL_TAG=v0.0.84 \
+  NEMOCLAW_AGENT=hermes \
+  NEMOCLAW_PROVIDER=ollama \
+  NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 \
+  NEMOCLAW_SANDBOX_NAME=my-hermes \
+  bash
+```
+
+Управление — через `nemohermes`, это *«the NemoClaw CLI with Hermes pre-selected»*:
+
+```bash
+nemohermes my-hermes status
+nemohermes my-hermes logs --follow
+nemohermes my-hermes rebuild
+```
+
+⚠️ **Взвесь, надо ли оно тебе.** Hermes — версия 0.18.2, лицензия MIT, платформа Tier 1.
+NemoClaw — **alpha 0.1.0**, авторы сами пишут *«interfaces can change between releases»*,
+а установщик не пинится по хэшу. Ты добавляешь незрелый слой ради изоляции, у которой
+вдобавок есть [известная оговорка](03-nemoclaw.md) (issue #3280). Если не уверен —
+бери Hermes сам по себе с `backend: docker`.
+
+---
+
 ## 🚨 Первое и самое важное: не ставь его из npm
 
 **В npm есть пакет `hermes-agent`, и он к Nous Research отношения не имеет.**
@@ -238,6 +302,147 @@ HERMES_API_TIMEOUT=1800
 
 ---
 
+## Шаг 5. Подключить Telegram-бота
+
+Источник — [официальная страница](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/messaging/telegram.md).
+
+### 1. Создать бота
+
+В Telegram найди **@BotFather**, отправь `/newbot`, придумай отображаемое имя и username
+(обязан заканчиваться на `bot`). В ответ придёт токен вида `123456789:ABCdefGHIjklMNOpqrSTUvwxYZ`.
+
+> 🔒 **Токен = полный контроль над ботом.** Дословно: *«Keep your bot token secret. Anyone
+> with this token can control your bot.»* Утёк — немедленно `/revoke` у BotFather.
+> В git не коммить.
+
+### 2. Узнать свой числовой ID
+
+Напиши **@userinfobot** — он мгновенно ответит числом вроде `123456789`.
+
+Нужно именно **число**, не `@username`. ID постоянный и не меняется.
+
+### 3. Настроить
+
+Через мастер:
+
+```bash
+hermes gateway setup
+```
+
+Либо руками в `~/.hermes/.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+TELEGRAM_ALLOWED_USERS=123456789
+```
+
+Несколько пользователей — через запятую.
+
+### 4. Запустить
+
+```bash
+hermes gateway
+```
+
+| Команда | Что делает |
+|---|---|
+| `hermes gateway` | запустить |
+| `hermes gateway status` | проверить |
+| `hermes gateway stop` | остановить |
+| `hermes gateway restart` | перезапустить |
+
+Напиши боту в Telegram — он должен ответить.
+
+---
+
+## ✅ Про безопасность бота — тут авторы молодцы
+
+Телеграм-бот — это дверь в твой DGX, открытая наружу. Hermes выполняет команды; если бот
+найдут посторонние, они будут разговаривать с агентом, у которого есть shell.
+
+**Но список разрешённых работает fail-closed.** Дословно:
+
+> Always set `TELEGRAM_ALLOWED_USERS` to restrict who can interact with your bot.
+> **Without it, the gateway denies all users by default as a safety measure.**
+
+То есть забыл настроить — бот **не ответит никому**, включая тебя. Ошибка приводит к
+«слишком закрыто», а не «открыто всему интернету». Это правильное поведение — сравни
+с [Ouroboros](05-ouroboros.md), где защита при сбое, наоборот, **пропускает** команды.
+
+Проверить свой уровень доступа прямо в чате:
+
+```
+/whoami
+```
+
+**Опасные команды требуют подтверждения в Telegram.** Агент спросит — отвечаешь `yes` или `no`.
+
+Ограничить набор команд для не-админов:
+
+```yaml
+gateway:
+  platforms:
+    telegram:
+      extra:
+        allow_from:
+          - "123456789"
+        allow_admin_from:
+          - "123456789"
+        user_allowed_commands:
+          - status
+          - model
+```
+
+---
+
+## Три грабли с Telegram
+
+### 1. Docker-бэкенд + вложения
+
+Если включил `terminal.backend: docker` — вложения уходят **с хоста, а не из контейнера**.
+Файл, созданный агентом внутри, наружу не отправится, пока не прокинешь папку:
+
+```yaml
+terminal:
+  backend: docker
+  docker_volumes:
+    - "/home/user/.hermes/cache/documents:/output"
+```
+
+### 2. Бот молчит в группе
+
+Виноват Privacy Mode. Выключается у BotFather: `/mybots` → свой бот → Bot Settings →
+Group Privacy → Turn off. **Но одного этого мало:**
+
+> You must remove and re-add the bot to any group after changing the privacy setting.
+
+Telegram кэширует настройку в момент вступления бота — без переподключения не подхватится.
+
+### 3. Telegram недоступен
+
+У Hermes есть свой прокси-параметр, причём **socks5 поддерживается**:
+
+```bash
+TELEGRAM_PROXY=socks5://127.0.0.1:1080
+```
+
+Работают и обычные `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`. Есть также
+`TELEGRAM_FALLBACK_IPS` — само наличие такой настройки намекает, что с доступностью
+у людей бывают проблемы.
+
+> **NOT VERIFIED:** доступен ли `api.telegram.org` из России без прокси — не проверял.
+
+### Таблица неполадок
+
+| Симптом | Причина |
+|---|---|
+| Не отвечает вообще | неверный `TELEGRAM_BOT_TOKEN`, смотри логи |
+| «Unauthorized» | твоего ID нет в `TELEGRAM_ALLOWED_USERS` — сверься с @userinfobot |
+| Молчит в группе | Privacy Mode включён, см. грабли №2 |
+| Голос приходит файлом, а не кружком | не установлен `ffmpeg` |
+
+---
+
 ## Про Nous Portal — не нужен
 
 У Nous есть платный Portal, но **на DGX он тебе ни к чему**: локальная модель не требует
@@ -260,3 +465,12 @@ HERMES_API_TIMEOUT=1800
 - [ ] `ollama ps` → в колонке `CONTEXT` не меньше 64000
 - [ ] `hermes` запускается и отвечает
 - [ ] агент реально читает файлы, а не печатает вызовы инструментов текстом
+
+Если подключал Telegram:
+
+- [ ] `hermes gateway status` — работает
+- [ ] бот отвечает тебе в Telegram
+- [ ] `/whoami` в чате показывает твой уровень доступа
+- [ ] **бот НЕ отвечает с постороннего аккаунта, которого нет в `TELEGRAM_ALLOWED_USERS`** — проверь это отдельно
+- [ ] на опасную команду приходит запрос подтверждения
+- [ ] токен бота не попал в git
