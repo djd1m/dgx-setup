@@ -23,6 +23,82 @@
 
 ---
 
+## Три способа запуска — реши ДО установки
+
+**Этот рецепт описывает способ №1 (curl-инсталлятор на хост).** Остальные два — контекст, чтобы
+ты не перепутал слои.
+
+| Способ | Где живёт **сам Hermes** | Когда брать |
+|---|---|---|
+| **curl-инсталлятор** (этот рецепт) | **на хосте**, venv в `~/.hermes/` | **по умолчанию** |
+| Официальный образ `nousresearch/hermes-agent` | в контейнере, данные в `/opt/data` | свой Docker |
+| Через [NemoClaw](03-nemoclaw.md) | **в песочнице OpenShell** | нужна изоляция всего агента |
+
+### 🚨 Две независимые оси — НЕ смешивай
+
+Отдельно от способа запуска у Hermes настраивается **terminal backend**. Он решает, **где
+выполняются команды агента**, а НЕ где живёт сам Hermes. Их шесть: `local`, `docker`, `ssh`,
+`singularity`, `modal`, `daytona`.
+
+| Ось | Что решает |
+|---|---|
+| Способ запуска (таблица выше) | где живёт **процесс Hermes** |
+| `terminal.backend` | где выполняются **команды агента** |
+
+Оси **независимы**. Hermes может стоять на хосте, а команды гонять в контейнере:
+
+```yaml
+terminal:
+  backend: docker
+```
+
+Дословно: *«the agent runs on your host but executes every command inside a single, persistent
+Docker sandbox»* —
+[docker.md](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/docker.md).
+
+**Рекомендация по умолчанию: установка на хост (Шаг 2) + `terminal.backend: docker`.**
+Если задача — «чтобы агент не сломал систему командой», этого хватает, и NemoClaw **не нужен**.
+NemoClaw добавляет другое: изоляцию **самого процесса** Hermes и **сетевую политику**.
+
+### Вариант с NemoClaw — только если нужна изоляция всего агента
+
+Hermes там запускается **внутри песочницы OpenShell**. Дословно: *«Create a **sandboxed** Hermes
+agent, then chat with it from the dashboard or terminal»* —
+[quickstart NemoClaw для Hermes](https://docs.nvidia.com/nemoclaw/user-guide/hermes/get-started/quickstart.md).
+
+Ключевое отличие от [инструкции 03](03-nemoclaw.md) — переменная `NEMOCLAW_AGENT`:
+
+```bash
+curl -fsSL https://www.nvidia.com/nemoclaw.sh | \
+  NEMOCLAW_INSTALL_TAG=v0.0.84 \
+  NEMOCLAW_AGENT=hermes \
+  NEMOCLAW_PROVIDER=ollama \
+  NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 \
+  NEMOCLAW_SANDBOX_NAME=my-hermes \
+  bash
+```
+
+**Провайдер обязан быть `ollama`.** Управление — через `nemohermes`, это *«the NemoClaw CLI with
+Hermes pre-selected»*:
+
+```bash
+nemohermes my-hermes status
+nemohermes my-hermes logs --follow
+nemohermes my-hermes rebuild
+```
+
+⚠️ **Взвесь зрелость слоёв, прежде чем предлагать это человеку.** Hermes — **0.18.2**, MIT,
+платформа Tier 1. NemoClaw — **alpha 0.1.0**, авторы сами пишут *«interfaces can change between
+releases»*, установщик **не пинится по хэшу** (сравни с Шагом 1 этого рецепта), а у изоляции есть
+[известная оговорка](03-nemoclaw.md) (issue #3280). Ты добавляешь незрелый слой ради изоляции.
+Если не уверен — **бери Hermes сам по себе с `backend: docker`**.
+
+> **NOT VERIFIED:** пропускает ли **сетевая политика OpenShell** исходящий трафик до
+> `api.telegram.org`, когда Hermes запущен в песочнице под NemoClaw, — **неизвестно, исследование
+> не проводилось**. **Не гадай.** Упёрся в это — остановись и спроси человека (Стоп-условие 12).
+
+---
+
 ## Предусловия
 
 1. Инструкция [00-ollama.md](00-ollama.md) выполнена.
