@@ -326,13 +326,25 @@ HERMES_API_TIMEOUT=1800
 
 **Это только переменная окружения — в `config.yaml` такого ключа нет.** Не добавляй его в yaml.
 
-### Шаг 7. (Опционально) vLLM вместо Ollama
+### Шаг 7. vLLM вместо Ollama — на DGX Spark НЕ предлагать
 
-Документация Hermes описывает vLLM подробнее, и на многокарточном DGX он раскрывается лучше.
+Документация Hermes описывает vLLM подробнее Ollama, и это создаёт ложный сигнал.
+**На DGX Spark vLLM не ставить.** Полный разбор — [08-vllm-vs-ollama.md](08-vllm-vs-ollama.md).
+Коротко:
+
+- **Быстрее не будет:** при одном пользователе оба движка упираются в шину 273 ГБ/с.
+- **[#46307](https://github.com/vllm-project/vllm/issues/46307)** (open, на GB10) вешает
+  хост: *«SSH dies; the machine requires a hard power-cycle»*. По SSH это не чинится.
+- [Playbook NVIDIA для кодинг-агентов на DGX Spark](https://github.com/NVIDIA/dgx-spark-playbooks/blob/main/nvidia/cli-coding-agent/README.md)
+  построен на Ollama.
+
+🛑 **`--tensor-parallel-size` на этой машине неприменим** — GB10 единый чип, GPU один.
+Встретил этот флаг в примере из интернета — это признак, что пример писался под другое железо.
+
+**Если человек всё-таки настаивает** (прочитав 08) или речь о другой машине:
 
 ```bash
-vllm serve meta-llama/Llama-3.1-70B-Instruct \
-  --port 8000 --max-model-len 65536 --tensor-parallel-size 2 \
+vllm serve <модель> --port 8000 --max-model-len 65536 \
   --enable-auto-tool-choice --tool-call-parser hermes
 ```
 
@@ -341,12 +353,10 @@ vllm serve meta-llama/Llama-3.1-70B-Instruct \
 > **печатать вызовы инструментов текстом вместо их выполнения**. Парсер `hermes` подходит
 > для Qwen 2.5 и Hermes 2/3.
 
-`--tensor-parallel-size 2` — число карт. Ставь по факту.
-
 Дальше `base_url: http://localhost:8000/v1`.
 
-**Что выбрать.** Ollama проще и уже стоит. vLLM быстрее на нескольких картах и лучше
-документирован для Hermes. **Начни с Ollama**, переезжай при нехватке скорости.
+**По умолчанию: Ollama.** Скорость на этой машине определяется выбором MoE-модели
+([00-ollama.md](../for-human/00-ollama.md)), а не движком — разница десятикратная.
 
 ---
 
@@ -488,6 +498,77 @@ gateway:
 ```
 
 Проверка уровня доступа человеком — команда `/whoami` в чате.
+
+---
+
+### Шаг 9. (Опционально) Mem0 OSS — локальная память без облака
+
+Ставить **только если человек просил** базу знаний. Для обычной работы Hermes не требуется.
+
+**Зачем.** Встроенная память Hermes — профиль, а не корпус: `MEMORY.md` ~2200 символов,
+`USER.md` ~1375, при переполнении инструмент возвращает **ошибку**. Встроенного RAG нет.
+Внешние memory-провайдеры почти все облачные и требуют ключ — **кроме Mem0 в режиме OSS**.
+
+Дословно из [документации интеграции Mem0 с Hermes](https://docs.mem0.ai/integrations/hermes):
+
+> No data is sent to Mem0 Cloud, and no Mem0 API key is required
+
+**Команда:**
+
+```bash
+hermes memory setup mem0 --mode oss \
+  --oss-llm ollama \
+  --oss-embedder ollama \
+  --oss-vector qdrant
+```
+
+Ожидаемый результат: создан `~/.hermes/mem0.json`, векторное хранилище — локальный Qdrant
+в `~/.hermes/mem0_qdrant`.
+Если не так: **не править конфиг наугад**, см. оговорку ниже.
+
+**Дословный пример структуры из документации** (он там **с OpenAI** — привожу как есть,
+не выдавая за Ollama-вариант):
+
+```json
+{
+  "mode": "oss",
+  "oss": {
+    "llm": {"provider": "openai", "config": {"model": "gpt-5-mini"}},
+    "embedder": {"provider": "openai", "config": {"model": "text-embedding-3-small"}},
+    "vector_store": {"provider": "qdrant", "config": {"path": "~/.hermes/mem0_qdrant"}}
+  }
+}
+```
+
+Имена провайдеров и ключи для Ollama — из
+[документации LLM](https://docs.mem0.ai/components/llms/models/ollama)
+(`provider: "ollama"`, ключи `model`, `temperature`, `max_tokens`, `ollama_base_url`) и
+[документации эмбеддера](https://docs.mem0.ai/components/embedders/models/ollama)
+(`provider: "ollama"`, ключи `model`, `embedding_dims`, `ollama_base_url`).
+
+> **NOT VERIFIED:** готового JSON для связки Hermes + Ollama в документации **нет** —
+> дословный пример только с OpenAI. Собирать конфиг из документированных имён можно,
+> но **предпочтительно `hermes memory setup mem0`**, а не ручная правка. Не выдумывать
+> ключи, которых нет в двух страницах выше.
+
+**Обязательно — скачать модель эмбеддингов отдельно:**
+
+```bash
+ollama pull nomic-embed-text
+```
+
+Ожидаемый результат: pull дошёл до 100%.
+Если не так: см. Шаг 5 инструкции [00-ollama.md](../for-human/00-ollama.md) (прокси).
+
+**LLM для Mem0 брать лёгкий.** Mem0 зовёт его на **каждой** операции с памятью для
+извлечения фактов — тяжёлая модель замедлит всё. На DGX Spark брать MoE: `gpt-oss:20b`
+(58 tok/s по [замерам](https://ollama.com/blog/nvidia-spark-performance)). Это **не**
+обязано совпадать с основной моделью Hermes.
+
+> ⚠️ **`embedding_dims`: в документации Mem0 дефолты расходятся** — 512 в Python-версии,
+> 768 в TypeScript. `nomic-embed-text` выдаёт 768. **Не подставлять значение по памяти:**
+> несовпадение размерности с векторным хранилищем ломается неочевидно (не падением, а
+> странным поведением поиска). Не задавать `embedding_dims` вручную без необходимости.
 
 ---
 
