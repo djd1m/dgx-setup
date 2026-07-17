@@ -77,17 +77,28 @@ GitHub API отдаёт `"license": null`.
 
 **Требуется:** Python **3.10+**, Git. Node, Rust и Docker для этого пути не нужны.
 
-Дословно из [README](https://github.com/razzant/ouroboros/blob/main/README.md):
+Дословно из [README](https://github.com/razzant/ouroboros/blob/main/README.md), **плюс одна
+строка от меня** — про неё сразу после:
 
 ```bash
 git clone https://github.com/razzant/ouroboros.git
 cd ouroboros
+git checkout 554b3ee          # ← этой строки в README нет, но она нужна
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
 python -m pip install -e . --no-deps
 ```
+
+> ⚠️ **Зачем `git checkout 554b3ee`.** Вся эта инструкция — включая находки про
+> [fail-open защиты](#3-защита-отключается-сама-именно-на-локальных-моделях) и отсутствие
+> LICENSE — проверена **на этом коммите**. `git clone` без него даст тебе `main`, который
+> с тех пор уехал. Это агент, который **переписывает собственный код**; читать про одну
+> версию, а запускать другую — плохая идея именно здесь.
+>
+> Хочешь свежий `main` — твоё право, но тогда находки ниже нужно перепроверять заново,
+> а не считать проверенными.
 
 Запуск:
 

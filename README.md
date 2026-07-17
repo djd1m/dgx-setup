@@ -5,9 +5,15 @@
 OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 
 **Целевая машина — DGX Spark на чипе [GB10 Grace Blackwell](https://docs.nvidia.com/dgx/dgx-spark/hardware.html)**,
-включая OEM-версии под чужим брендом (например,
+включая машины того же класса под чужим брендом (например,
 [Dell Pro Max with GB10](https://www.dell.com/en-us/shop/desktop-computers/dell-pro-max-with-gb10/spd/dell-pro-max-fcm1253-micro)).
 Это **`aarch64`**, а не x86_64: Grace — процессор на архитектуре Arm.
+Первое, что стоит выполнить, — `uname -m`.
+
+> **NOT VERIFIED:** что Dell Pro Max with GB10 — **официально** OEM-версия DGX Spark.
+> Dell этого слова не употребляет, называет продукт «AI Accelerator»; вывод построен на
+> совпадении спецификаций. На практике это ничего не меняет — подробности в
+> [00-ollama.md](for-human/00-ollama.md).
 
 > ⚠️ **Если у тебя классический x86-DGX** с отдельными картами A100/H100 — инструкции
 > в целом подойдут, но два места читай критически: **архитектура бинарников** (`amd64`
@@ -20,6 +26,17 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 |---|---|---|
 | [`for-human/`](for-human/) | для человека | объяснения, зачем каждый шаг, что может пойти не так |
 | [`for-ai/`](for-ai/) | для AI-кодера | исполняемый рецепт: команды, проверки, критерии готовности |
+
+**Точки входа в ветку для AI-кодера** (нумерация шагов внутри неё своя — не смешивай с человеческой):
+[00 Ollama](for-ai/00-ollama.md) ·
+[01 Claude Code](for-ai/01-claude-code-local.md) ·
+[02 Cloud.ru](for-ai/02-claude-code-cloudru.md) ·
+[03 NemoClaw](for-ai/03-nemoclaw.md) ·
+[04 Hermes](for-ai/04-hermes.md) ·
+[05 Ouroboros](for-ai/05-ouroboros.md) ·
+[06 OpenClaw](for-ai/06-openclaw.md) ·
+[07 Навыки](for-ai/07-skills-migration.md) ·
+[08 vLLM](for-ai/08-vllm-vs-ollama.md)
 
 ## Главная идея: DGX — это сервер инференса, а не клиент чужого API
 

@@ -202,6 +202,13 @@ mkdir -p ~/.agents/skills
 cp -r my-skill ~/.agents/skills/
 ```
 
+> 🛑 **Не раскладывай навыки в OpenClaw через `dz init --target openclaude`.** Адаптер
+> `@dzhechkov/adapter-openclaude` (версия `0.1.0`) пишет в `~/.openclaude/skills/`, а
+> OpenClaw читает `~/.openclaw/skills` и `~/.agents/skills`. **`.openclaude` ≠ `.openclaw`.**
+>
+> Отказ **тихий**: команда отработает успешно и отрапортует, сколько файлов записала, —
+> а навыков у агента не будет. Копируй руками.
+
 OpenClaw ищет навыки в шести местах по убыванию приоритета:
 
 | Приоритет | Путь |

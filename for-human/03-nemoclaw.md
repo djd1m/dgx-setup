@@ -249,6 +249,7 @@ curl -fsSL https://www.nvidia.com/nemoclaw.sh | \
   NEMOCLAW_NON_INTERACTIVE=1 \
   NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 \
   NEMOCLAW_PROVIDER=ollama \
+  NEMOCLAW_REQUIRE_CAP_DROP=1 \
   NEMOCLAW_SANDBOX_NAME=my-claw \
   bash
 ```
@@ -257,6 +258,27 @@ curl -fsSL https://www.nvidia.com/nemoclaw.sh | \
 > предупреждение из [quickstart](https://docs.nvidia.com/nemoclaw/user-guide/openclaw/get-started/quickstart.md):
 > *«Do not place `NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1` before `curl`, because the
 > installer process cannot read it there.»*
+
+### 🔒 Про `NEMOCLAW_REQUIRE_CAP_DROP=1` — не выбрасывай эту строку
+
+Ты ставишь NemoClaw **ради изоляции**. Без этой переменной изоляция может оказаться
+дырявой, и ты об этом не узнаешь.
+
+Открытый [issue #3280](https://github.com/NVIDIA/NemoClaw/issues/3280): проверка сброса
+привилегий по умолчанию **предупреждает, но не блокирует** — чтобы хосты без `CAP_SETPCAP`
+могли загрузиться. Следствие дословно: *«dangerous caps can remain in the bounding set on
+some hosts»*.
+
+То есть песочница поднимется, всё будет выглядеть работающим, а часть опасных привилегий
+останется. Переменная превращает предупреждение в отказ: либо изоляция настоящая, либо
+установка не проходит.
+
+**Держи её в окружении всё время работы с песочницей**, а не только при установке —
+источник не уточняет, нужна ли она при каждом запуске:
+
+```bash
+export NEMOCLAW_REQUIRE_CAP_DROP=1
+```
 
 С `NEMOCLAW_PROVIDER=ollama` вся санкционная поверхность исчезает: ни ключа, ни аккаунта,
 ни NGC. Установка сводится к скачиванию с GitHub, npm и Docker Hub.
@@ -303,13 +325,8 @@ ssh -L 18789:127.0.0.1:18789 пользователь@адрес-dgx
 по умолчанию **предупреждает, но не блокирует** — чтобы хосты без `CAP_SETPCAP` могли
 загрузиться. Следствие, дословно: *«dangerous caps can remain in the bounding set on some hosts»*.
 
-Включить строгий режим:
-
-```bash
-export NEMOCLAW_REQUIRE_CAP_DROP=1
-```
-
-**Ставь эту переменную.** Песочница нужна ради изоляции — иначе зачем всё затевалось.
+Лечится переменной `NEMOCLAW_REQUIRE_CAP_DROP=1` — она уже стоит в команде установки
+в **Шаге 3**, разбор там же. Если ставил раньше и без неё — переустанови с ней.
 
 **3. Установка без интернета не поддерживается.** Из матрицы платформ: air-gapped —
 **Unsupported**. Открытый [issue #2218](https://github.com/NVIDIA/NemoClaw/issues/2218)
@@ -327,6 +344,7 @@ guidance…)»* и признаёт, что сети с блокировками
 ## Готово, если
 
 - [ ] `nemoclaw --version` печатает версию
+- [ ] **`echo $NEMOCLAW_REQUIRE_CAP_DROP` печатает `1`** — иначе изоляция может быть дырявой (Шаг 3)
 - [ ] `nemoclaw my-claw status` показывает работающую песочницу
 - [ ] `docker ps` показывает контейнеры OpenShell
 - [ ] дашборд открывается через SSH-туннель
