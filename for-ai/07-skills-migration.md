@@ -202,10 +202,18 @@ ls ~/.agents/skills/my-skill/SKILL.md
 `<workspace>/.agents/skills` → **`~/.agents/skills`** → `~/.openclaw/skills` → встроенные →
 `skills.load.extraDirs`.
 
-> ⚠️ **Не использовать `dz init --target openclaude`.** Адаптер `@dzhechkov/adapter-openclaude`
-> (v0.1.0) пишет в `~/.openclaude/skills/`, тогда как OpenClaw читает `~/.openclaw/skills`.
-> `.openclaude` ≠ `.openclaw` — команда отработает успешно, навыков не будет. Отказ тихий.
-> Проверено чтением адаптера. Для Hermes тот же CLI пишет в `~/.hermes/skills` — там путь верный.
+> ⚠️ **`--target openclaude` — это другой проект, не OpenClaw. Не путать по созвучию.**
+>
+> | | Репозиторий | Каталог навыков |
+> |---|---|---|
+> | **OpenClaw** | [openclaw/openclaw](https://github.com/openclaw/openclaw) | `~/.openclaw/skills`, `~/.agents/skills` |
+> | **OpenClaude** | [Gitlawb/openclaude](https://github.com/Gitlawb/openclaude) | `~/.openclaude/skills` |
+>
+> Адаптер `@dzhechkov/adapter-openclaude` **исправен** — он пишет в `~/.openclaude/skills/`,
+> куда OpenClaude и читает. Просто **цели `openclaw` у `dz` нет вовсе**: доступны
+> `claude-code, codex, opencode, hermes, openclaude, copilot, agents-md, cursor, gemini,
+> windsurf`. Для OpenClaw — копировать вручную (Шаг 6). Для Hermes `--target hermes` корректен
+> (`~/.hermes/skills`).
 
 ### Шаг 7. NemoClaw
 

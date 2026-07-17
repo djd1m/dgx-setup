@@ -202,12 +202,17 @@ mkdir -p ~/.agents/skills
 cp -r my-skill ~/.agents/skills/
 ```
 
-> 🛑 **Не раскладывай навыки в OpenClaw через `dz init --target openclaude`.** Адаптер
-> `@dzhechkov/adapter-openclaude` (версия `0.1.0`) пишет в `~/.openclaude/skills/`, а
-> OpenClaw читает `~/.openclaw/skills` и `~/.agents/skills`. **`.openclaude` ≠ `.openclaw`.**
+> ⚠️ **`--target openclaude` в `dz` — это НЕ OpenClaw.** Ловушка в именах, отличающихся
+> одной буквой:
 >
-> Отказ **тихий**: команда отработает успешно и отрапортует, сколько файлов записала, —
-> а навыков у агента не будет. Копируй руками.
+> | | Репозиторий | Каталог навыков |
+> |---|---|---|
+> | **OpenClaw** | [openclaw/openclaw](https://github.com/openclaw/openclaw) | `~/.openclaw/skills`, `~/.agents/skills` |
+> | **OpenClaude** | [Gitlawb/openclaude](https://github.com/Gitlawb/openclaude) | `~/.openclaude/skills` |
+>
+> Это **два разных проекта**. `dz` умеет целиться в OpenClaude, но **цели `openclaw` у него
+> нет вовсе** (список: `claude-code, codex, opencode, hermes, openclaude, copilot, agents-md,
+> cursor, gemini, windsurf`). Так что для OpenClaw — копируй руками, как выше.
 
 OpenClaw ищет навыки в шести местах по убыванию приоритета:
 
