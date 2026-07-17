@@ -43,18 +43,37 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 Все инструкции построены вокруг одного принципа: **модель работает на твоём железе**.
 Это не идеология, а следствие трёх проверенных фактов:
 
-1. **Anthropic не обслуживает Россию.** Страна входит в системные требования
-   Claude Code наравне с ОС и памятью — [Advanced setup](https://code.claude.com/docs/en/setup),
+1. **Ни Anthropic, ни OpenAI не обслуживают Россию — у каждого свой источник.**
+
+   **Anthropic:** страна входит в системные требования Claude Code наравне с ОС и памятью —
+   [Advanced setup](https://code.claude.com/docs/en/setup),
    [список поддерживаемых стран](https://www.anthropic.com/supported-countries).
 
-   > **NOT VERIFIED — исправление.** Раньше здесь стояло «Anthropic **и OpenAI** не
-   > обслуживают Россию», а ссылка была **только на Anthropic**. Утверждение про OpenAI
-   > не было подкреплено ничем: их страницы я не проверял, а формулировку протащил по
-   > аналогии. Убрал до появления источника — по стандарту этого репозитория утверждение
-   > без первоисточника существовать не должно, кем бы оно ни выглядело очевидным.
+   **OpenAI:** России нет **ни в одном** из двух списков — ни для
+   [API](https://developers.openai.com/api/docs/supported-countries), ни для
+   [ChatGPT](https://help.openai.com/en/articles/7947663-chatgpt-supported-countries).
+   Причём OpenAI сама задаёт правило чтения — список **закрытый**, дословно:
+
+   > We do not publish a separate list of countries and territories that we do not support.
+   > **If a location is not included in the list below, our API is not supported there.**
+
+   И называет последствие:
+
+   > Accessing or offering access to our services outside of the countries and territories
+   > listed below **may result in your account being blocked or suspended**.
+
+   Проверено на живой странице: страны на «R» — только Romania и Rwanda. Беларуси нет.
+   Украина есть с оговоркой `(with certain exceptions)`.
+
+   > **Две оговорки, чтобы не подменять основания.** Россия исключена **списком стран**,
+   > а не санкционным пунктом: в [ToS](https://openai.com/policies/terms-of-use/) раздел
+   > Trade controls сформулирован общо («U.S. embargoed country or territory»), и **Россия
+   > в нём не названа** — она не является comprehensively embargoed страной в смысле США,
+   > в отличие от Кубы, Ирана, КНДР и Сирии. Это разные вещи.
    >
-   > На вывод это не влияет: локальный инференс снимает вопрос независимо от политики
-   > любого провайдера. Но точность формулировки — не украшение, а то, ради чего всё писалось.
+   > Отдельно: `help.openai.com` отдаёт 403 любому не-браузерному клиенту. Страница API
+   > (`developers.openai.com`) читается напрямую и проверена; ChatGPT-список сверялся через
+   > архивные снимки официальной страницы.
 2. **NVIDIA в лицензионном соглашении прямо называет Россию** в списке ограниченных
    направлений — [NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/),
    а [Technology Access ToU](https://developer.nvidia.com/legal/terms) требуют подтвердить,
