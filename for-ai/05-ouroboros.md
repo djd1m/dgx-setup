@@ -1,6 +1,6 @@
 # 05. Ouroboros — рецепт установки для AI-агента
 
-**Цель:** развернуть [razzant/ouroboros](https://github.com/razzant/ouroboros) на x86_64 Ubuntu/DGX-OS
+**Цель:** развернуть [razzant/ouroboros](https://github.com/razzant/ouroboros) на DGX Spark / GB10 (aarch64, DGX OS)
 из исходников, headless (`ouroboros server`, `127.0.0.1:8765`), с моделями через Ollama по
 OpenAI-совместимому провайдеру. Проверено на коммите `554b3ee`, версия **6.64.1**.
 
