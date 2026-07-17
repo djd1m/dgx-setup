@@ -1,0 +1,281 @@
+# 07. Перенос навыков из Perplexity в остальных агентов
+
+Задача: у тебя есть навыки (Skills), созданные в Perplexity, и ты хочешь, чтобы теми же
+умениями пользовались Claude Code, Hermes, OpenClaw, NemoClaw и Ouroboros.
+
+---
+
+## Сразу главное
+
+**Хорошая новость.** Формат навыка у всех шести — один и тот же: папка с файлом `SKILL.md`,
+внутри YAML-frontmatter и markdown-инструкция. Hermes и OpenClaw прямо заявляют в документации
+соответствие открытому стандарту [agentskills.io](https://agentskills.io/specification).
+Переписывать навык не придётся — только скопировать папку.
+
+**Плохая новость.** Автоматически вытащить навык из Perplexity **нельзя**. API навыков
+не существует. Единственная ручная операция во всей инструкции — именно это.
+
+Поэтому работа делится так:
+
+| Шаг | Сложность |
+|---|---|
+| 1. Достать навык из Perplexity | руками, автоматизации нет |
+| 2. Поправить три поля | минуты |
+| 3. Разложить по пяти агентам | `cp -r` ×4 + одна команда |
+
+---
+
+## Что такое навык в Perplexity
+
+Навыки — часть продукта **Perplexity Computer**, не основного поиска. Дословно из
+официальной статьи Perplexity Research —
+[Designing, Refining, and Maintaining Agent Skills](https://research.perplexity.ai/articles/designing-refining-and-maintaining-agent-skills-at-perplexity):
+
+> A Skill is not just a single `SKILL.md` file. In many cases, a Skill includes several files.
+
+Устройство навыка:
+
+```
+my-skill/
+├── SKILL.md          # frontmatter + инструкция
+├── scripts/          # «code the agent runs, not reinvents»
+├── references/       # документация, подгружаемая по необходимости
+├── assets/           # шаблоны, схемы
+└── config.json       # настройка
+```
+
+Поля frontmatter:
+
+| Поле | Что значит |
+|---|---|
+| `name` | *«all lower-case characters, have no spaces, and can use hyphens»*. Обязан **совпадать с именем папки** |
+| `description` | **триггер маршрутизации** — по нему модель решает, грузить ли навык |
+| `depends` | иерархические зависимости от других навыков |
+| `metadata` | для ревью и эвалов |
+
+Про `description` стоит запомнить дословную формулировку — она пригодится дальше:
+
+> The description is the routing trigger… instructions for the model for when to load the Skill.
+
+То есть это не «что навык делает», а «когда его брать». **Ровно та же семантика — в
+agentskills.io.** Поэтому описания переписывать не нужно.
+
+---
+
+## Шаг 1. Достать навык из Perplexity
+
+### Почему автоматически нельзя
+
+Это проверено надёжным способом, а не «я не нашёл кнопку». У Perplexity есть машинный индекс
+всей документации — [`docs.perplexity.ai/llms.txt`](https://docs.perplexity.ai/llms.txt).
+Поиск по слову `skill` в нём даёт **ноль совпадений**. Эндпоинта навыков не существует.
+
+В [research-статье](https://research.perplexity.ai/articles/designing-refining-and-maintaining-agent-skills-at-perplexity)
+слов export, download и share нет вовсе.
+
+> **NOT VERIFIED:** есть ли в интерфейсе кнопка «скачать навык» — подтвердить не удалось.
+> Домен `www.perplexity.ai` (включая справку) отдаёт **Cloudflare 403** любому не-браузерному
+> клиенту. Ты залогинен — **посмотри сам**. Если кнопка есть, шаг 1 становится тривиальным.
+
+### Два случая
+
+**Навык создан загрузкой `.md`-файла.** Тогда исходник уже лежит у тебя на диске — шаг 1
+пропускаешь целиком. По [справке Perplexity](https://www.perplexity.ai/help-center/en/articles/13914413-how-to-use-computer-skills)
+навык можно создать, *«импортировав готовые инструкции в markdown»*.
+
+**Навык создан разговором.** Открываешь навык в разделе Skills и копируешь текст руками
+в файл `SKILL.md`.
+
+### 🛑 Расширения-экспортёры — не надо
+
+В выдаче попадаются расширения и MCP-серверы, обещающие выгрузку из Perplexity. Все они
+работают через **твои сессионные куки** и реверс приватного веб-API. Один из них,
+`perplexity-user-mcp`, честно пишет о себе:
+
+> Not affiliated with Perplexity AI, Inc.
+
+Это не API, это скрейпинг: ломается при любом изменении фронтенда и требует отдать чужому
+коду живую сессию твоего аккаунта. Ради переноса пары текстовых файлов — размен не в твою пользу.
+
+---
+
+## Шаг 2. Три грабли, на которых споткнёшься
+
+Формат общий, но мелкие требования у агентов различаются. Вот всё, что реально ломается.
+
+### Грабля 1: Ouroboros требует `version`
+
+У Perplexity этого поля нет, а в Ouroboros оно **обязательное** —
+[docs/CREATING_SKILLS.md](https://github.com/razzant/ouroboros/blob/main/docs/CREATING_SKILLS.md).
+Обязательные поля там: `name` (≤64 символов), `description`, `version`.
+
+Без него манифест не пройдёт валидацию. Лечится одной строкой:
+
+```yaml
+version: 1.0.0
+```
+
+Добавить её можно сразу и всем — остальные агенты лишнее поле просто игнорируют.
+
+### Грабля 2: у OpenClaw описание — одна строка до 160 символов
+
+Требование из [docs/tools/skills.md](https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md):
+`description` — одна строка, меньше 160 символов. У Perplexity описания бывают длиннее.
+
+Не влезаешь — сокращай, но **сохраняй смысл триггера**: описание отвечает на вопрос
+«когда грузить», а не «что делает».
+
+### Грабля 3: `name` должен совпадать с именем папки
+
+Требование одинаковое у всех, но переименуешь папку при копировании — навык не загрузится.
+Правило имени чуть строже у NemoClaw: только буквы, цифры, точки, дефисы, подчёркивания;
+файлы, начинающиеся с точки, пропускаются.
+
+### Что можно не трогать
+
+`depends:` и `metadata:` — вендорные поля Perplexity. Чужие агенты их **игнорируют**,
+чистить не обязательно. Пользы от `depends:` за пределами Perplexity Computer нет:
+иерархию зависимостей понимает только он.
+
+Папки `scripts/`, `references/`, `assets/` переносятся **как есть** — они присутствуют
+во всех пяти агентах.
+
+---
+
+## Шаг 3. Разложить по агентам
+
+Готовую папку `my-skill/` копируешь в пять мест.
+
+### Claude Code
+
+```bash
+cp -r my-skill ~/.claude/skills/
+```
+
+Проверка:
+
+```bash
+ls ~/.claude/skills/my-skill/SKILL.md
+```
+
+### Hermes
+
+```bash
+cp -r my-skill ~/.hermes/skills/
+```
+
+Каталог `~/.hermes/skills/` документация Hermes называет
+*«the primary directory and source of truth»* —
+[features/skills.md](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/skills.md).
+
+Приятный бонус: **каждый навык автоматически становится слеш-командой**. Навык `my-skill`
+вызывается как `/my-skill аргументы`. Можно ставить до пяти подряд.
+
+Hermes умеет читать и внешние папки — ключ `skills.external_dirs` в `~/.hermes/config.yaml`.
+Это пригодится, если захочешь держать все навыки в одном месте (см. ниже).
+
+### OpenClaw
+
+```bash
+mkdir -p ~/.agents/skills
+cp -r my-skill ~/.agents/skills/
+```
+
+OpenClaw ищет навыки в шести местах по убыванию приоритета:
+
+| Приоритет | Путь |
+|---|---|
+| 1 | `<workspace>/skills` |
+| 2 | `<workspace>/.agents/skills` |
+| 3 | **`~/.agents/skills`** ← используем этот |
+| 4 | `~/.openclaw/skills` |
+| 5 | встроенные |
+| 6 | `skills.load.extraDirs` |
+
+Почему именно `~/.agents/skills`, а не `~/.openclaw/skills`: **на него же можно нацелить
+Hermes** через `skills.external_dirs`. Один каталог — два агента, без дублирования файлов.
+
+### NemoClaw
+
+Здесь `cp` не сработает: файлы надо занести **внутрь песочницы**.
+
+```bash
+nemohermes my-assistant skill install ./my-skill/
+```
+
+Для OpenClaw в песочнице — та же команда через `nemoclaw <имя> skill install <путь>`.
+Удаление — `skill remove my-skill`.
+
+Команда читает папку на хосте и пишет её внутрь песочницы. Навык окажется в
+`/sandbox/.hermes/skills/my-skill` (или `/sandbox/.openclaw/skills/my-skill`).
+
+**Навык переживает пересборку песочницы** — каталог `skills` входит в `state_dirs`,
+которые снапшотятся и восстанавливаются.
+
+> ⚠️ **Слово «skill» в NemoClaw значит три разные вещи.** Легко перепутать:
+>
+> | Что | Где | Для кого |
+> |---|---|---|
+> | Навыки песочницы | `skill install` | **это то, что нам нужно** |
+> | Agent skills репозитория | `.agents/skills/` в репо NemoClaw | для твоего Claude Code, когда он правит сам NemoClaw |
+> | Плагины | `/sandbox/.hermes/plugins/` | рантайм-код, ставится **только** своим Dockerfile |
+>
+> Дословно из документации: *«Do not use `skill install` for Hermes runtime plugins.»*
+
+### Ouroboros
+
+```bash
+cp -r my-skill ~/Ouroboros/data/skills/external/
+```
+
+Каталог для пользовательских навыков — `data/skills/external/<имя>/`.
+
+**И тут навык не заработает сразу.** Жизненный цикл в Ouroboros:
+
+```
+install → review → enable → execute
+```
+
+Посередине — **ревью тремя моделями**. Пока оно не пройдено, навык мёртв. Это не баг,
+это защита: Ouroboros умеет переписывать собственный код, и навыки он проверяет всерьёз.
+
+Владелец может пропустить дорогое LLM-ревью кнопкой «⚠️ Skip review» в интерфейсе.
+Детерминированные проверки (валидация манифеста, preflight) выполнятся в любом случае.
+**Сам агент себе такое ревью выписать не может** — отметка живёт в owner-state.
+
+---
+
+## Один каталог вместо пяти копий
+
+Пять копий одного файла разъедутся — это вопрос времени. Если навыков больше двух-трёх,
+держи их в одном месте под git:
+
+```bash
+mkdir -p ~/.agents/skills
+cd ~/.agents/skills && git init
+```
+
+Дальше:
+
+- **OpenClaw** читает его штатно (приоритет 3) — ничего настраивать не надо
+- **Hermes** нацеливается через `skills.external_dirs` в `~/.hermes/config.yaml`
+- **Claude Code**, **Ouroboros** — симлинк или копия
+- **NemoClaw** — только `skill install`, песочница снаружи не читает
+
+---
+
+## Готово, если
+
+- [ ] `SKILL.md` лежит в папке, имя папки совпадает с полем `name`
+- [ ] в frontmatter есть `name`, `description` и `version`
+- [ ] `description` — одна строка короче 160 символов
+- [ ] `ls ~/.claude/skills/my-skill/SKILL.md` находит файл
+- [ ] Hermes: навык виден как слеш-команда `/my-skill`
+- [ ] OpenClaw: навык появился в списке навыков
+- [ ] NemoClaw: `skill install` отработал без ошибки
+- [ ] Ouroboros: навык прошёл ревью и переведён в enabled
+- [ ] навык реально срабатывает — задай вопрос, попадающий под его `description`
+
+Последний пункт важнее остальных. Навык может лежать в правильной папке и не грузиться —
+потому что `description` не описывает **условие загрузки**. Если агент навык игнорирует,
+чини в первую очередь описание, а не путь.
