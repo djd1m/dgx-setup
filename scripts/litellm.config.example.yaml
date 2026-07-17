@@ -1,0 +1,41 @@
+# LiteLLM — пример конфига для учёта расхода Claude Code через свой прокси.
+# Секретов здесь НЕТ: ключи подставляются из переменных окружения (secrets.env).
+# Скопируй в ~/.dgx-claude/litellm.config.yaml и поправь список моделей под себя.
+#
+# Точные id моделей меняются — сверься со списком Anthropic/OpenAI перед использованием:
+#   Anthropic: https://docs.claude.com/en/docs/about-claude/models/overview
+#   OpenAI:    https://platform.openai.com/docs/models
+
+model_list:
+  # --- Anthropic ---
+  - model_name: claude-opus-4-8            # это имя ты выберешь в Claude Code
+    litellm_params:
+      model: anthropic/claude-opus-4-8     # реальный id, уходит в api.anthropic.com
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # --- OpenAI (LiteLLM переводит Anthropic /v1/messages -> формат OpenAI) ---
+  - model_name: gpt-5
+    litellm_params:
+      model: openai/gpt-5                  # поставь актуальный id
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+general_settings:
+  # master_key ОБЯЗАТЕЛЕН — без него учёт не приписывается ключам (см. 09, Вариант C).
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL     # нужен для SpendLogs и бюджетов
+
+litellm_settings:
+  drop_params: true       # тихо отбрасывать параметры, которых нет у целевой модели
+  # num_retries: 2

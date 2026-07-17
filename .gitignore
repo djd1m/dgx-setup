@@ -1,0 +1,8 @@
+# Секреты и сгенерированные рантайм-конфиги — НИКОГДА в репозиторий.
+# Реальные файлы живут в ~/.dgx-claude/, но подстрахуемся на случай запуска внутри репо.
+secrets.env
+*.secret
+xray.json
+litellm.config.yaml
+!scripts/litellm.config.example.yaml
+.dgx-claude/

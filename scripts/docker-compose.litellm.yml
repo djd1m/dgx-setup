@@ -1,0 +1,51 @@
+# LiteLLM + PostgreSQL для учёта токенов и денег.
+#
+# network_mode: host у litellm — сознательно. Прокси xray слушает 127.0.0.1:10809
+# (только петля, наружу не торчит). Из контейнера в bridge-режиме до него не достучаться,
+# поэтому litellm делит сетевой стек с хостом: видит и xray на 127.0.0.1:10809,
+# и Postgres на 127.0.0.1:5432, и сам слушает :4000.
+#
+# Образы запиннены. litellm:v1.92.0 проверен — есть linux/arm64 (GB10 = aarch64).
+
+services:
+  litellm-db:
+    image: postgres:16-alpine
+    container_name: dgx-litellm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - litellm-pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"    # только на петлю, наружу не отдаём
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.92.0
+    container_name: dgx-litellm
+    restart: unless-stopped
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+    network_mode: host          # см. комментарий вверху
+    volumes:
+      - ${LITELLM_CONFIG:-./litellm.config.yaml}:/app/config.yaml:ro
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@127.0.0.1:5432/litellm
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Вот здесь весь смысл: исходящие запросы LiteLLM уходят в туннель на КЗ.
+      HTTPS_PROXY: ${LLM_EGRESS_PROXY:-http://127.0.0.1:10809}
+      HTTP_PROXY: ${LLM_EGRESS_PROXY:-http://127.0.0.1:10809}
+      NO_PROXY: "127.0.0.1,localhost"
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+
+volumes:
+  litellm-pgdata:
