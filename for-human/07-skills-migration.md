@@ -27,33 +27,50 @@
 
 ## Что такое навык в Perplexity
 
-Навыки — часть продукта **Perplexity Computer**, не основного поиска. Дословно из
-официальной статьи Perplexity Research —
-[Designing, Refining, and Maintaining Agent Skills](https://research.perplexity.ai/articles/designing-refining-and-maintaining-agent-skills-at-perplexity):
+Навыки — часть продукта **Perplexity Computer**, не основного поиска. И здесь важно
+не перепутать два разных описания формата, потому что они из разных источников.
+
+### Минимальный формат — он и подтверждён официально
+
+По [справке Perplexity про My Skills](https://www.perplexity.ai/help-center/en/articles/13914413-how-to-use-computer-skills),
+импортировать можно:
+
+- **один файл `.md`**, либо
+- **`.zip` с `SKILL.md` в корне**
+
+`SKILL.md` обязан содержать YAML-frontmatter с **`name`** и **`description`**. Имя —
+lowercase, дефисы, **1–64 символа**. Максимальный размер файла — **10 МБ**.
+
+```markdown
+---
+name: example-skill
+description: Краткое описание — когда этот навык применять
+---
+
+Инструкции навыка…
+```
+
+**Это всё, что официально обязательно.** И этого достаточно, чтобы навык переносился.
+
+### Расширенный формат — из другого источника, и он НЕ обязателен
+
+Отдельно есть [исследовательская статья Perplexity Research](https://research.perplexity.ai/articles/designing-refining-and-maintaining-agent-skills-at-perplexity):
 
 > A Skill is not just a single `SKILL.md` file. In many cases, a Skill includes several files.
 
-Устройство навыка:
+Она описывает каталог с `SKILL.md`, `scripts/`, `references/`, `assets/`, `config.json`
+и полями `depends`, `metadata`.
 
-```
-my-skill/
-├── SKILL.md          # frontmatter + инструкция
-├── scripts/          # «code the agent runs, not reinvents»
-├── references/       # документация, подгружаемая по необходимости
-├── assets/           # шаблоны, схемы
-└── config.json       # настройка
-```
+⚠️ **Но это статья про внутренний фреймворк Perplexity Computer, а не нормативная схема
+для My Skills.** Сама статья называет эти элементы **возможными, а не обязательными**.
 
-Поля frontmatter:
+> **NOT VERIFIED:** публичная схема My Skills **не объявляет** `depends`, `metadata`,
+> `scripts/`, `references/`, `assets/`, `config.json` обязательными. Поэтому перенос
+> навыка считай подтверждённым **только для минимального формата выше**. Если у твоего
+> навыка есть `scripts/` — переносить их можно, но полагаться на то, что это «стандарт»,
+> нельзя.
 
-| Поле | Что значит |
-|---|---|
-| `name` | *«all lower-case characters, have no spaces, and can use hyphens»*. Обязан **совпадать с именем папки** |
-| `description` | **триггер маршрутизации** — по нему модель решает, грузить ли навык |
-| `depends` | иерархические зависимости от других навыков |
-| `metadata` | для ревью и эвалов |
-
-Про `description` стоит запомнить дословную формулировку — она пригодится дальше:
+### Про `description` — единственное, что стоит запомнить дословно
 
 > The description is the routing trigger… instructions for the model for when to load the Skill.
 
@@ -73,15 +90,19 @@ agentskills.io.** Поэтому описания переписывать не 
 В [research-статье](https://research.perplexity.ai/articles/designing-refining-and-maintaining-agent-skills-at-perplexity)
 слов export, download и share нет вовсе.
 
-> **NOT VERIFIED:** есть ли в интерфейсе кнопка «скачать навык» — подтвердить не удалось.
-> Домен `www.perplexity.ai` (включая справку) отдаёт **Cloudflare 403** любому не-браузерному
-> клиенту. Ты залогинен — **посмотри сам**. Если кнопка есть, шаг 1 становится тривиальным.
+**Официальная справка про My Skills описывает только создание, импорт и удаление.**
+Действий Download, Export или Copy Source в ней нет.
+
+> **NOT VERIFIED:** это «не найдено», а не «доказано, что нет». Меню навыка у
+> залогиненного пользователя проверить не удалось — `www.perplexity.ai` отдаёт
+> **Cloudflare 403** любому не-браузерному клиенту. Ты залогинен: **открой свой навык
+> и посмотри сам.** Если кнопка есть, шаг 1 становится тривиальным.
 
 ### Два случая
 
-**Навык создан загрузкой `.md`-файла.** Тогда исходник уже лежит у тебя на диске — шаг 1
-пропускаешь целиком. По [справке Perplexity](https://www.perplexity.ai/help-center/en/articles/13914413-how-to-use-computer-skills)
-навык можно создать, *«импортировав готовые инструкции в markdown»*.
+**Навык создан загрузкой файла.** Тогда исходник уже лежит у тебя на диске — шаг 1
+пропускаешь целиком. Импорт официально поддержан: **один `.md`** либо **`.zip` с
+`SKILL.md` в корне**, до 10 МБ.
 
 **Навык создан разговором.** Открываешь навык в разделе Skills и копируешь текст руками
 в файл `SKILL.md`.

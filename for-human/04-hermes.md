@@ -78,14 +78,58 @@ NemoClaw — **alpha 0.1.0**, авторы сами пишут *«interfaces can
 вдобавок есть [известная оговорка](03-nemoclaw.md) (issue #3280). Если не уверен —
 бери Hermes сам по себе с `backend: docker`.
 
-> ⚠️ **NOT VERIFIED, и это важно, если планируешь Telegram.** У OpenShell есть **сетевая
-> политика** — в этом и смысл песочницы. Пропускает ли она по умолчанию исходящий трафик
-> на `api.telegram.org`, и чем именно он разрешается, я **не выяснил**. Может оказаться,
-> что связку «NemoClaw + Hermes + Telegram» придётся отдельно уговаривать, либо что она
-> заведётся сама. Проверяй на месте и закладывай время.
->
-> Это ещё один довод в пользу простого пути: **Hermes на хосте + `backend: docker`** —
-> сеть не ограничена, Telegram настраивается как описано ниже, и воевать не с чем.
+### Telegram в песочнице: работает, но нужен пресет
+
+Раньше здесь стоял `NOT VERIFIED`. **Теперь проверено — и ответ хороший.**
+
+У OpenShell сетевая политика **deny-by-default**, поэтому само по себе обращение к
+`api.telegram.org` из песочницы не пройдёт. Но у NemoClaw есть **официальный пресет
+именно под это** — файл
+[`src/lib/messaging/channels/telegram/policy/hermes.yaml`](https://github.com/NVIDIA/NemoClaw/blob/main/src/lib/messaging/channels/telegram/policy/hermes.yaml)
+в репозитории NVIDIA:
+
+```yaml
+preset:
+  name: telegram
+  description: "Hermes Telegram Bot API access"
+
+network_policies:
+  telegram:
+    endpoints:
+      - host: api.telegram.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET,  path: "/bot*/**" }
+          - allow: { method: POST, path: "/bot*/**" }
+          - allow: { method: GET,  path: "/file/bot*/**" }
+    binaries:
+      - { path: /usr/local/bin/node }
+      - { path: /usr/bin/python3* }
+      - { path: /opt/hermes/.venv/bin/python }
+```
+
+Обрати внимание, насколько политика узкая: разрешён один хост, один порт и только
+маршруты вида `/bot*/**` — и только трём конкретным бинарям. Это не «открыть интернет»,
+а «пустить Hermes к Telegram Bot API».
+
+⚠️ **Но по умолчанию он не включён.** В
+[`nemoclaw-blueprint/policies/tiers.yaml`](https://github.com/NVIDIA/NemoClaw/blob/main/nemoclaw-blueprint/policies/tiers.yaml)
+Telegram присутствует **только в тире `open`**:
+
+| Тир | Telegram |
+|---|---|
+| `restricted` | ❌ |
+| `balanced` (**по умолчанию**) | ❌ |
+| `open` | ✅ `{ name: telegram, access: read-write }` |
+
+Так что при onboarding надо **выбрать пресет Telegram** (либо добавить эквивалентные
+правила), иначе бот молча не достучится — и симптом будет неотличим от того, что описан
+ниже в разделе про блокировку у провайдера. Сначала проверь пресет, потом ищи DNS.
+
+Вариант «Hermes на хосте + `backend: docker`» по-прежнему проще: сеть не ограничена,
+воевать не с чем. Но теперь это вопрос удобства, а не «неизвестно, заработает ли».
 
 ---
 
