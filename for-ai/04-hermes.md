@@ -589,6 +589,21 @@ hermes -p <имя> gateway start
 > Точная строка, где `profile create` прокидывает `HERMES_HOME` в дочерний процесс, — выведена
 > из доков и `--profile`-обвязки, построчно до exec не прослежена.
 
+🛑 **Две грабли применения изменений (проверено на живом стенде 2026-07-19) — соблюдать строго:**
+
+| Что менял | Чем применять |
+|---|---|
+| `secrets/*.env` (токены, ключи, URL) | `docker compose up -d --force-recreate` — **обязательно** |
+| `config.yaml` (`model.*`) | `docker compose restart` — достаточно |
+
+1. **`docker compose restart` НЕ перечитывает `env_file`** — переменные впекаются при СОЗДАНИИ
+   контейнера. Симптом: `.env` заполнен, а контейнер видит старое → «token … was rejected».
+   Диагностика без печати секрета:
+   `docker compose exec -T <svc> sh -c 'case "$TELEGRAM_BOT_TOKEN" in REPLACE_ME*) echo ПЛЕЙСХОЛДЕР;; "") echo пусто;; *) echo задан;; esac'`
+2. **`base_url` берётся из `config.yaml`, а не из `.env`.** Если `model.base_url` там уже задан —
+   используется он; одного `OPENAI_BASE_URL` в `.env` НЕ достаточно. Перенос без утечки URL:
+   `docker compose exec -T <svc> sh -c 'hermes config set model.base_url "$OPENAI_BASE_URL"'`
+
 Готовый скелет для случая «разные люди на одном VPS» (3 сервиса, том + токен + allowlist на
 каждого, bridge-сеть, backend `local` внутри контейнера):
 [`scripts/docker-compose.hermes-multi.example.yml`](../scripts/docker-compose.hermes-multi.example.yml).

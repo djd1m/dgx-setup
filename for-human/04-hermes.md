@@ -695,8 +695,35 @@ allowlist на каждого, и **whole-process wrapping** — либо офи
 >
 > ✅ **И прогнано вживую (2026-07-19, Docker 29.1.3):** три контейнера бут под s6 без конфликтов,
 > remap uid + chown тома работают, токен из `env_file` доходит до Telegram-адаптера, `gateway run`
-> корректна. С реальными данными осталось только: настоящий токен (бот подключится) и бэкенд модели
-> через `hermes model` (бот ответит).
+> корректна. Доведено до живого бота: `getMe` → `ok=true`, endpoint модели → HTTP 200, модель
+> найдена в его `/v1/models`.
+
+### 🛑 Двое граблей, на которых это спотыкается (проверено на живом стенде)
+
+**1. `docker compose restart` НЕ перечитывает `.env`.** Переменные впекаются в контейнер при
+**создании**. Заполнил `secrets/*.env` и сделал `restart` — контейнер по-прежнему видит старые
+значения, бот молчит, а в логах «token … was rejected».
+
+| Что менял | Чем применять |
+|---|---|
+| `secrets/*.env` | `docker compose up -d --force-recreate` ← **обязательно** |
+| `config.yaml` (модель, base_url) | `docker compose restart` ← достаточно |
+
+Посмотреть, что реально видит контейнер, **не печатая секрет**:
+
+```bash
+docker compose exec -T hermes-dad sh -c \
+  'case "$TELEGRAM_BOT_TOKEN" in REPLACE_ME*) echo ПЛЕЙСХОЛДЕР;; "") echo пусто;; *) echo задан;; esac'
+```
+
+**2. `base_url` берётся из `config.yaml`, а не из `.env`.** Если в конфиге уже прописан
+`model.base_url`, то используется именно он — одного `OPENAI_BASE_URL` в `.env` **мало**.
+Перенести значение из окружения в конфиг, не светя URL в истории команд:
+
+```bash
+docker compose exec -T hermes-dad sh -c 'hermes config set model.base_url "$OPENAI_BASE_URL"'
+docker compose restart
+```
 
 ### Целесообразность: когда несколько Hermes оправданы, а когда это лишнее
 
