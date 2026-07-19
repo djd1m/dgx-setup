@@ -77,6 +77,10 @@ volumes:
 #   mkdir -p secrets && chmod 600 secrets/*.env
 #   HERMES_UID=$(id -u) HERMES_GID=$(id -g) \
 #     docker compose -f docker-compose.hermes-multi.example.yml up -d
+#   ⚠️ НА ROOT-хосте $(id -u)=0 → образ НЕ мапит агента в root (страхуется), оставляет внутренний
+#      uid 10000 — проверено вживую 2026-07-19. Ничего не ломается, но UID-match становится no-op:
+#      файлы в томе будут 10000:10000. Нужен конкретный владелец — задай явный non-root uid:
+#      HERMES_UID=1000 HERMES_GID=1000 docker compose ... up -d
 #
 # --- модель: один раз на каждого (пишется в его том) -------------------------------------------
 #   docker compose -f docker-compose.hermes-multi.example.yml exec hermes-dad  hermes model
