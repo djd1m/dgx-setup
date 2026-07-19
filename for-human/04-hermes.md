@@ -276,11 +276,29 @@ model:
 
 Имя модели должно совпадать с выводом `ollama list`.
 
-> **NOT VERIFIED:** команда `hermes config set model.base_url <url>` в документации нигде
-> не приведена. Официально сказано: *«For other providers and custom endpoints, use
-> `hermes model` or set `model.base_url` in `config.yaml` directly»*. Плюс оговорка:
-> *«`hermes config set` only writes scalar values»*. **Не угадывай сеттер** — пользуйся
-> мастером или правь yaml.
+> ✅ **Раньше здесь стоял NOT VERIFIED — теперь проверено вживую** (образ `v2026.7.7.2`,
+> 2026-07-19): **`hermes config set` понимает точечные ключи** и пишет прямо в `config.yaml`.
+> В документации он по-прежнему не описан, но работает; если однажды отвалится — откатывайся
+> на мастер или правку yaml.
+
+### Третий способ — неинтерактивно, одной командой на ключ
+
+Удобен, когда агентов несколько (например, три контейнера) и кликать мастером не хочется:
+
+```bash
+hermes config set model.default        moonshotai/Kimi-K2.6   # как отдаёт твой endpoint
+hermes config set model.provider       openai-api
+hermes config set model.base_url       https://твой-хост/v1
+hermes config set model.context_length 64000                  # ниже Hermes не стартует
+```
+
+Каждая команда отвечает `✓ Set ... in .../config.yaml`. Если endpoint требует ключ — он идёт
+не сюда, а в `.env` как `OPENAI_API_KEY`.
+
+> ⚠️ **Имя модели должно совпадать буква-в-букву** с тем, что endpoint отдаёт в `/v1/models`.
+> Посмотреть живой список: `hermes model --refresh`. И помни про контекст: **`hermes model`
+> — это только мастер**, задать модель/URL его флагами нельзя (все его опции — про вход в
+> Nous Portal).
 
 ---
 

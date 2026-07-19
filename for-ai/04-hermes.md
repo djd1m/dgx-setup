@@ -289,11 +289,38 @@ model:
 ollama list
 ```
 
-> **NOT VERIFIED:** команда `hermes config set model.base_url <url>` в документации **нигде
-> не приведена**. Официально сказано: *«For other providers and custom endpoints, use
-> `hermes model` or set `model.base_url` in `config.yaml` directly»*. Плюс оговорка:
-> *«`hermes config set` only writes scalar values»*.
-> **НЕ УГАДЫВАЙ СЕТТЕР.** Пользуйся `hermes model` или правь yaml напрямую.
+> ✅ **ПРОВЕРЕНО вживую** (образ `v2026.7.7.2`, 2026-07-19): **`hermes config set` принимает
+> точечные ключи и пишет прямо в `config.yaml`.** Работают `model.default`, `model.provider`,
+> `model.base_url`, `model.context_length` — каждый отвечает `✓ Set <key> = <value> in
+> /opt/data/config.yaml`. Это **неинтерактивный** путь, и он предпочтителен для автономного
+> агента и особенно для нескольких контейнеров: **`hermes model` — только мастер**, флагов
+> провайдера/модели/URL у него нет (его опции — про OAuth-вход в Nous Portal).
+>
+> Оговорка: в официальной документации этот сеттер по-прежнему не описан — поведение
+> подтверждено **эмпирически на этой версии** и может измениться в будущих. Если `config set`
+> отвалится — откат на `hermes model` или прямую правку yaml.
+
+### Способ C — неинтерактивно (кастомный OpenAI-совместимый endpoint)
+
+```bash
+hermes config set model.default        <имя-модели-как-в-/v1/models>
+hermes config set model.provider       openai-api
+hermes config set model.base_url       https://<хост>/v1
+hermes config set model.context_length 64000        # ниже Hermes не стартует
+```
+
+Ключ, если endpoint требует авторизации, — `OPENAI_API_KEY` в `.env` (не в `config.yaml`).
+**Имя модели должно совпадать буква-в-букву** с тем, что endpoint отдаёт в `/v1/models`;
+сверить живой список — `hermes model --refresh`.
+
+Для нескольких контейнеров — цикл:
+
+```bash
+for s in hermes-me hermes-wife hermes-son; do
+  docker compose exec -T "$s" hermes config set model.base_url https://<хост>/v1
+done
+docker compose restart
+```
 
 **Ожидаемый результат:**
 
@@ -746,8 +773,9 @@ ollama pull nomic-embed-text
 4. **`ollama ps` показывает `CONTEXT` < 64000** — Hermes откажется стартовать. Чини **на стороне
    сервера Ollama** (`OLLAMA_CONTEXT_LENGTH=64000`). Через OpenAI-совместимый API это **не чинится**.
    Не пытайся «уговорить» Hermes на меньший контекст.
-5. **Хочется угадать `hermes config set model.base_url`** — **NOT VERIFIED**, такой инвокации в
-   документации нет. Используй `hermes model` или правь `config.yaml`.
+5. **~~Не угадывать `hermes config set model.base_url`~~ — снято.** Проверено вживую на
+   `v2026.7.7.2`: сеттер работает с точечными ключами (Способ C в Шаге 4). В официальной
+   документации он не описан, поэтому при отказе — откат на `hermes model` / правку yaml.
 6. **Адреса недоступны** (`github.com`, `astral.sh`, `nodejs.org`, npm). Из России могут быть
    недоступны — тот же случай, что и с `ollama pull`. Недоступность `pypi.org`/`duckduckgo.com`
    стоп-условием **не является** (это предупреждения).

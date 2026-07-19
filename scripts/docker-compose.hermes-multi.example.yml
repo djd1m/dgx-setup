@@ -83,10 +83,25 @@ volumes:
 #      HERMES_UID=1000 HERMES_GID=1000 docker compose ... up -d
 #
 # --- модель: один раз на каждого (пишется в его том) -------------------------------------------
-#   docker compose -f docker-compose.hermes-multi.example.yml exec hermes-dad  hermes model
-#   #  OpenAI-подписка → ChatGPT OAuth device-code (открыть URL, ввести код);
-#   #  API-ключ        → provider openai-api при заданном OPENAI_API_KEY.
-#   docker compose -f docker-compose.hermes-multi.example.yml restart
+#   ПРЕДПОЧТИТЕЛЬНО — НЕИНТЕРАКТИВНО (проверено на v2026.7.7.2 2026-07-19; у `hermes model`
+#   флагов провайдера/модели/URL НЕТ — он только мастер, его опции про вход в Nous Portal):
+#
+#     C=docker-compose.hermes-multi.example.yml
+#     for s in hermes-dad hermes-wife hermes-son; do
+#       docker compose -f $C exec -T "$s" hermes config set model.default        <модель-как-в-/v1/models>
+#       docker compose -f $C exec -T "$s" hermes config set model.provider       openai-api
+#       docker compose -f $C exec -T "$s" hermes config set model.base_url       https://<хост>/v1
+#       docker compose -f $C exec -T "$s" hermes config set model.context_length 64000
+#     done
+#     docker compose -f $C restart
+#
+#   ⚠️ context_length НЕ МЕНЬШЕ 64000 — Hermes отвергает меньший прямо на старте.
+#   ⚠️ Имя модели — буква-в-букву как отдаёт endpoint в /v1/models (`hermes model --refresh`).
+#   Ключ endpoint'а (если нужен) идёт в secrets/<человек>.env как OPENAI_API_KEY, не в config.yaml.
+#
+#   Интерактивная альтернатива (мастер, по одному контейнеру):
+#     docker compose -f $C exec hermes-dad hermes model
+#       OpenAI-подписка → ChatGPT OAuth device-code; API-ключ → provider openai-api.
 #
 # --- проверка изоляции --------------------------------------------------------------------------
 #   docker compose -f docker-compose.hermes-multi.example.yml ps
