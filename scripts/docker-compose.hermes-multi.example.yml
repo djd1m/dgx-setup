@@ -1,40 +1,48 @@
 # Три изолированных Hermes-агента на одной машине — по одному на человека (папа/жена/сын).
 #
-# ЗАЧЕМ именно контейнер на каждого, а не все на хосте:
-#   Каждый Telegram-бот даёт своему владельцу shell. При дефолтном terminal.backend: local
-#   команды исполняются как хостовый пользователь, а backend: docker песочит ТОЛЬКО shell-команды,
-#   но не сам процесс Hermes (code-exec, MCP, плагины, хуки, скиллы). Для РАЗНЫХ людей проект
-#   (SECURITY.md §2.2, §2.6.4) предписывает whole-process изоляцию — то есть контейнер на инстанс.
-#   Тогда бот одного не дотянется до ~/.hermes другого. Подробности — for-human/04-hermes.md.
+# СВЕРЕНО 2026-07-19 с живым образом nousresearch/hermes-agent (Docker Hub, 18 тегов) и с
+# официальными docker-compose.yml / Dockerfile / docker/main-wrapper.sh из репозитория.
+# Отличия от одиночного официального примера отмечены ниже.
 #
-# СЕТЬ: host-networking НЕ используем (в отличие от docker-compose.litellm.yml). Telegram работает
-#   на исходящем long polling — входящие порты не нужны, а на общей сети три контейнера подрались бы
-#   за порты дашборда/API. Дефолтный bridge: только исходящие, наружу ничего не публикуем.
+# ЗАЧЕМ контейнер на каждого: каждый Telegram-бот даёт владельцу shell; для РАЗНЫХ людей
+#   проект (SECURITY.md §2.2 / §2.6.4) требует whole-process изоляцию — контейнер на инстанс.
+#   Подробнее — for-human/04-hermes.md.
 #
-# TERMINAL BACKEND внутри контейнера остаётся local — команды и так исполняются внутри контейнера,
-#   который и есть граница. Docker-in-docker не нужен.
+# ОТЛИЧИЯ от официального docker-compose.yml (там 1 инстанс + дашборд):
+#   - официальный использует network_mode: host — ЗДЕСЬ НЕТ: на общей сети три контейнера
+#     подрались бы за порты (дашборд 9119, API-сервер). Telegram — исходящий long polling,
+#     входящие порты не нужны → дефолтный bridge, наружу ничего не публикуем.
+#   - дашборд (у официального — отдельный сервис на 127.0.0.1:9119) здесь опущен: между
+#     инстансами конфликтовал бы по порту. Управление — `docker compose ... exec <svc> hermes ...`.
 #
-# ⚠️ NOT VERIFIED (свериться с живым образом, см. врезку внизу файла):
-#   - запускает ли образ по умолчанию именно gateway (иначе раскомментируй command:);
-#   - точный тег образа (закрепи вместо :latest);
-#   - хватает ли .env для настройки модели или нужен config.yaml в томе (поэтому есть шаг `hermes model`).
+# ВАЖНО (подтверждено по Dockerfile и main-wrapper.sh):
+#   - НЕ переопределять entrypoint: образ стартует под s6-overlay /init (PID 1), который
+#     делает remap пользователя и chown тома; в обход — бут ломается.
+#   - НЕ использовать `user:` / `docker run --user <uid>`: образ сам remap'ит внутреннего
+#     hermes (uid 10000) в HERMES_UID/HERMES_GID и chown'ит /opt/data. Пробрось СВОЙ host-uid
+#     (см. «запуск» ниже) — main-wrapper.sh прямо отвергает старт под произвольным --user.
+#   - команда запуска gateway — ровно ["gateway", "run"]; main-wrapper подставит `hermes`
+#     (роутинг: первый арг не исполняемый → `hermes <args>`).
 
 x-hermes-common: &hermes-common
-  image: nousresearch/hermes-agent:latest   # ⚠️ закрепи КОНКРЕТНЫЙ тег вместо latest
+  image: nousresearch/hermes-agent:v2026.7.7.2   # закреплённый тег; latest/main пересобираются постоянно
   restart: unless-stopped
-  security_opt:
-    - no-new-privileges:true
+  command: ["gateway", "run"]          # → `hermes gateway run` (как в официальном compose)
+  environment:
+    - HERMES_UID=${HERMES_UID:-1000}   # твой host-uid: файлы в томе останутся твоими
+    - HERMES_GID=${HERMES_GID:-1000}
   pids_limit: 512
-  mem_limit: 2g               # агент лёгкий (модель удалённая); подстрой при желании
-  # command: ["hermes", "gateway"]   # ⚠️ раскомментируй, если образ по умолчанию НЕ поднимает gateway
+  mem_limit: 2g                        # агент лёгкий (модель удалённая); подстрой при желании
+  # security_opt: ["no-new-privileges:true"]   # опционально; официальный compose НЕ ставит.
+  #   Включай ТОЛЬКО если проверил, что s6-бут (root→drop привилегий) с ним не падает.
 
 services:
   hermes-dad:
     <<: *hermes-common
     container_name: hermes-dad
-    env_file: ./secrets/dad.env
+    env_file: ./secrets/dad.env        # TELEGRAM_* + модель ЭТОГО человека
     volumes:
-      - dad-data:/opt/data     # свой HERMES_HOME: токен, память, сессии, config.yaml
+      - dad-data:/opt/data             # свой HERMES_HOME: токен, память, сессии, config.yaml
 
   hermes-wife:
     <<: *hermes-common
@@ -56,25 +64,31 @@ volumes:
   son-data:
 
 # --- secrets/<человек>.env (создать рядом, НЕ коммитить, chmod 600) -----------------------------
-# У КАЖДОГО свой файл, свой токен бота, свой ID. Одинаковый токен на два контейнера Hermes отвергает.
+# У КАЖДОГО свой файл, свой токен, свой ID. Одинаковый токен на два контейнера Hermes отвергает.
+# Секреты читаются и из env_file (как здесь), и из тома ~/.hermes/.env — образ берёт process-env
+# (в официальном compose так же передают TEAMS_* / GOOGLE_CHAT_* через environment).
 #
 #   TELEGRAM_BOT_TOKEN=<токен ЭТОГО человека от @BotFather>
-#   TELEGRAM_ALLOWED_USERS=<числовой ID ЭТОГО человека от @userinfobot>   # только он один
+#   TELEGRAM_ALLOWED_USERS=<числовой ID ЭТОГО человека от @userinfobot>    # только он один
 #   TELEGRAM_FALLBACK_IPS=149.154.167.220        # если РФ-провайдер режет api.telegram.org по DNS
-#   # модель — выбери ОДИН путь:
-#   # A) OpenAI по API-ключу:      OPENAI_API_KEY=sk-...   OPENAI_BASE_URL=https://api.openai.com/v1
-#   # B) свой/удалённый endpoint:  OPENAI_BASE_URL=http://<хост>:<порт>/v1   OPENAI_API_KEY=<если нужен>
+#   # модель по API-ключу:  OPENAI_API_KEY=sk-...  (сам провайдер выбирается на шаге `hermes model`)
 #
-# --- запуск и инициализация --------------------------------------------------------------------
-#   chmod 600 secrets/*.env
-#   docker compose -f docker-compose.hermes-multi.example.yml up -d
-#   docker compose ... exec hermes-dad  hermes model     # выбрать модель — один раз на каждого
-#   docker compose ... exec hermes-wife hermes model
-#   docker compose ... exec hermes-son  hermes model
-#   docker compose ... restart
-#   # проверить: каждый пишет своему боту; бот одного НЕ отвечает с аккаунта другого.
+# --- запуск (host-uid обязателен, чтобы файлы в томе были твоими) -------------------------------
+#   mkdir -p secrets && chmod 600 secrets/*.env
+#   HERMES_UID=$(id -u) HERMES_GID=$(id -g) \
+#     docker compose -f docker-compose.hermes-multi.example.yml up -d
 #
-# --- сверка с живым образом (я не мог подтвердить это по исходнику) -----------------------------
-#   docker run --rm nousresearch/hermes-agent:latest hermes --version
-#   curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/docker-compose.yml
-#   # скопируй из их файла реальные command/entrypoint и переменные — подставь вместо предположений.
+# --- модель: один раз на каждого (пишется в его том) -------------------------------------------
+#   docker compose -f docker-compose.hermes-multi.example.yml exec hermes-dad  hermes model
+#   #  OpenAI-подписка → ChatGPT OAuth device-code (открыть URL, ввести код);
+#   #  API-ключ        → provider openai-api при заданном OPENAI_API_KEY.
+#   docker compose -f docker-compose.hermes-multi.example.yml restart
+#
+# --- проверка изоляции --------------------------------------------------------------------------
+#   docker compose -f docker-compose.hermes-multi.example.yml ps
+#   docker compose -f docker-compose.hermes-multi.example.yml logs -f hermes-son
+#   каждый пишет своему боту; бот одного НЕ отвечает с аккаунта другого; из hermes-son не видно dad-data.
+#
+# --- что осталось проверить эмпирически на твоём железе -----------------------------------------
+#   - живой старт всех трёх (docker на VPS ещё не стоял на момент сверки);
+#   - что выбранная модель реально отвечает после `hermes model` в каждом контейнере.
