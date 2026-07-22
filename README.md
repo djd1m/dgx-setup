@@ -39,7 +39,9 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 [08 vLLM](for-ai/08-vllm-vs-ollama.md) ·
 [09 Прокси и учёт](for-ai/09-proxy-accounting.md) ·
 [10 Bootstrap](for-ai/10-bootstrap.md) ·
-[11 Три агента на хосте](for-ai/11-multi-agent-host.md)
+[11 Три агента на хосте](for-ai/11-multi-agent-host.md) ·
+[12 Облачный мозг и роутинг](for-ai/12-cloud-brain-routing.md) ·
+[13 Hermes-исполнитель](for-ai/13-hermes-executor.md)
 
 ## Главная идея: DGX — это сервер инференса, а не клиент чужого API
 
@@ -105,6 +107,8 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 | 09 | [Claude Code через свой прокси + учёт](for-human/09-proxy-accounting.md) | если есть своя инфраструктура и надо считать расход | — |
 | 10 | [Bootstrap: чистый DGX → Claude Code через прокси в КЗ](for-human/10-bootstrap.md) | одна команда: диагностика → xray + Claude Code + LiteLLM | — |
 | 11 | [Три агента на одном хосте без помех](for-human/11-multi-agent-host.md) | Hermes + Ouroboros + OpenClaw рядом: порты, каталоги, Ollama, изоляция | 04, 05, 06 |
+| 12 | [Облачный мозг Cloud.ru и маршрутизация](for-human/12-cloud-brain-routing.md) | выбор облачной FM (мозг + русский), fallback-routing, LiteLLM | — |
+| 13 | [Hermes как автономный исполнитель](for-human/13-hermes-executor.md) | Hermes сам гонит инструкции: аппрувы, мозг, Brave, усиления доков | 04, 12 |
 
 **Важно про 03 и 06.** NemoClaw — не агент и не модель. Это обёртка, которая запускает
 **OpenClaw или Hermes внутри песочницы OpenShell**:
