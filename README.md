@@ -38,7 +38,8 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 [07 Навыки](for-ai/07-skills-migration.md) ·
 [08 vLLM](for-ai/08-vllm-vs-ollama.md) ·
 [09 Прокси и учёт](for-ai/09-proxy-accounting.md) ·
-[10 Bootstrap](for-ai/10-bootstrap.md)
+[10 Bootstrap](for-ai/10-bootstrap.md) ·
+[11 Три агента на хосте](for-ai/11-multi-agent-host.md)
 
 ## Главная идея: DGX — это сервер инференса, а не клиент чужого API
 
@@ -103,6 +104,7 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 | 08 | [vLLM вместо Ollama?](for-human/08-vllm-vs-ollama.md) | разбор вопроса. Ответ — **нет**, и вот почему | 00 |
 | 09 | [Claude Code через свой прокси + учёт](for-human/09-proxy-accounting.md) | если есть своя инфраструктура и надо считать расход | — |
 | 10 | [Bootstrap: чистый DGX → Claude Code через прокси в КЗ](for-human/10-bootstrap.md) | одна команда: диагностика → xray + Claude Code + LiteLLM | — |
+| 11 | [Три агента на одном хосте без помех](for-human/11-multi-agent-host.md) | Hermes + Ouroboros + OpenClaw рядом: порты, каталоги, Ollama, изоляция | 04, 05, 06 |
 
 **Важно про 03 и 06.** NemoClaw — не агент и не модель. Это обёртка, которая запускает
 **OpenClaw или Hermes внутри песочницы OpenShell**:
