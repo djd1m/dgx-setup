@@ -33,7 +33,7 @@
 |---|---|---|
 | `CLOUDRU_BASE_URL` | публичный адрес сервиса | `https://foundation-models.api.cloud.ru/v1` |
 | `CLOUDRU_API_KEY` | у человека → **только `.env`** | секрет, не в git/логи/чат |
-| `CLOUD_MODEL_ID` | **из `curl $CLOUDRU_BASE_URL/models`** | не угадывать; напр. `Qwen/Qwen3-235B-A22B-Instruct-2507` |
+| `CLOUD_MODEL_ID` | **из `curl $CLOUDRU_BASE_URL/models`** | по умолчанию `Qwen/Qwen3.6-35B-A3B` (проверено на Cloud.ru); id из HF-карточки НЕ подходит |
 | `OLLAMA_LOCAL_URL` | по агенту (см. Шаг 3) | Hermes/Ouroboros: `.../v1`; OpenClaw: **без** `/v1` |
 | `AUX_MODEL` | дешёвая локальная | `gpt-oss-20b` (58 tok/s) |
 
@@ -43,17 +43,23 @@
 
 ### Шаг 1. Выбрать мозговую модель (по двум осям)
 
-**По умолчанию — `Qwen/Qwen3-235B-A22B-Instruct-2507`.** Единственный кандидат YES/YES:
-- tool-calling измерен: BFCL-v3 **70.9**, TAU2-Retail **74.6** —
-  [карточка](https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507);
-- русский назван поимённо (119 языков) — [блог Qwen3](https://qwenlm.github.io/blog/qwen3/),
-  [tech report](https://arxiv.org/abs/2505.09388).
+**По умолчанию — `Qwen/Qwen3.6-35B-A3B`** (точный id из каталога, регистр важен).
 
-**Запасной — `Qwen/Qwen3-30B-A3B-Instruct-2507`:** тот же русский
-([блог Qwen3](https://qwenlm.github.io/blog/qwen3/)), tool-calling слабее (BFCL-v3 **65.1**,
-TAU2-Retail **57.0**, проседает Telecom 12.3 / Airline 38) —
-[карточка](https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507). **Тот же hermes-парсер,
-что у 235B** → миграция лёгкая.
+> 🔧 **Проверено на Cloud.ru 2026-07-23.** `Qwen3-235B-A22B-Instruct-2507` (id из HF-карточки)
+> на Cloud.ru **НЕ РАБОТАЕТ** — в каталоге модель зовётся `qwen/qwen3-235b-a22b`, HF-id к их API
+> не подходит. `Qwen/Qwen3.6-35B-A3B` в каталоге есть и отвечает (HTTP 200, корректный русский).
+> **Всегда брать id из `/v1/models`, НЕ из HF-карточки.**
+
+Почему 3.6-35B-A3B: работает на Cloud.ru + отвечает по-русски (проверено живым запросом);
+MoE 35B при **~3B активных** → быстрая; русский у Qwen назван поимённо
+([блог Qwen3](https://qwenlm.github.io/blog/qwen3/)).
+
+> ⚠️ **Внутренние reasoning-токены:** на короткий вопрос тратит ~200 токенов до ответа. С малым
+> `max_tokens` (32) `content` приходит ПУСТЫМ — ставить `max_tokens` 256+. Проверено вживую.
+
+**Запасной — `Qwen/Qwen3-30B-A3B`** (тоже точный id из каталога): тот же нативный русский
+([блог Qwen3](https://qwenlm.github.io/blog/qwen3/)), MoE 3B-активных, быстрый; tool-calling слабее
+на многоходовых спец-доменах. Годится, если 3.6-35B-A3B недоступен.
 
 🛑 **Не брать мозгом:**
 - **Qwen3.5-397B-A17B** — tool чуть выше (BFCL-V4 72.9, TAU2 86.7,
@@ -180,8 +186,9 @@ curl -fsS "$CLOUDRU_BASE_URL/models" \
 
 ## Критерий готовности
 
-- [ ] `CLOUD_MODEL_ID` получен из `/v1/models` (не угадан), у модели подтверждённый русский
-      **и** измеренный tool-calling (по умолчанию `Qwen/Qwen3-235B-A22B-Instruct-2507`)
+- [ ] `CLOUD_MODEL_ID` получен из `/v1/models` (не угадан); по умолчанию `Qwen/Qwen3.6-35B-A3B`
+      (проверен на Cloud.ru), НЕ `Qwen3-235B-A22B-Instruct-2507` (id из HF-карточки не работает)
+- [ ] `max_tokens` 256+ (Qwen3.6 тратит reasoning-токены; малый лимит → пустой content)
 - [ ] `CLOUDRU_API_KEY` только в `.env`; `git grep`/логи ключа не содержат
 - [ ] Fallback настроен правильным для агента механизмом (Hermes `fallback_providers` /
       OpenClaw `model.fallbacks` / Ouroboros `OUROBOROS_MODEL_FALLBACKS`)
