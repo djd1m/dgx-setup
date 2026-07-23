@@ -110,6 +110,19 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 | 12 | [Облачный мозг Cloud.ru и маршрутизация](for-human/12-cloud-brain-routing.md) | выбор облачной FM (мозг + русский), fallback-routing, LiteLLM | — |
 | 13 | [Hermes как автономный исполнитель](for-human/13-hermes-executor.md) | Hermes сам гонит инструкции: аппрувы, мозг, Brave, усиления доков | 04, 12 |
 
+## Утилиты в `scripts/` (не только DGX)
+
+Помимо DGX-специфичных инструкций в `scripts/` лежат самодостаточные установщики, которые
+работают на **любом** сервере (сами определяют ОС / архитектуру / пакетный менеджер). Ресёрч,
+на котором они построены, — в [`research/`](research/) (каждый факт со ссылкой на первоисточник).
+
+| Скрипт | Что делает | Ресёрч |
+|---|---|---|
+| [`install-claude-codex.sh`](scripts/install-claude-codex.sh) | Ставит Claude Code + Codex на любой ОС оптимальным способом (native-инсталлер без Node, npm-фолбэк). `--only claude\|codex`, `--diagnose` | [claude-code-install](research/claude-code-install.md), [codex-install](research/codex-install.md) |
+| [`install-codex-plugin.sh`](scripts/install-codex-plugin.sh) | Подключает Codex к Claude Code как MCP-сервер (`claude mcp add codex -- codex mcp-server`). Официального «codex-плагина» нет — это MCP | [codex-plugin-claude-code](research/codex-plugin-claude-code.md) |
+| [`install-claude-telegram.sh`](scripts/install-claude-telegram.sh) | Ставит **community**-мост Telegram↔Claude Code (RichardAtCT/claude-code-telegram). Официального TG-плагина нет; бот = удалённый доступ, обязателен allowlist | [telegram-claude-code](research/telegram-claude-code.md) |
+| [`dgx-claude-bootstrap.sh`](scripts/dgx-claude-bootstrap.sh) | DGX → Claude Code через VLESS-прокси + LiteLLM. Любую фазу можно пропустить (`--skip-*` / `--only`); гео-точка выхода не проверяется | [10-bootstrap](for-human/10-bootstrap.md) |
+
 **Важно про 03 и 06.** NemoClaw — не агент и не модель. Это обёртка, которая запускает
 **OpenClaw или Hermes внутри песочницы OpenShell**:
 

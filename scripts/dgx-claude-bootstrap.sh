@@ -3,7 +3,7 @@
 # dgx-claude-bootstrap.sh
 #
 # Чистый DGX -> Claude Code, который ходит в модели Anthropic и OpenAI ЧЕРЕЗ
-# твой прокси в Казахстане, с учётом токенов и денег в LiteLLM.
+# твой VLESS-прокси (точка выхода не важна), с учётом токенов и денег в LiteLLM.
 #
 # Цепочка, которую собирает скрипт:
 #
@@ -20,15 +20,20 @@
 # Подробности и обоснование: ../for-human/09-proxy-accounting.md  и  10-bootstrap.md
 #
 # Запуск:
-#   bash dgx-claude-bootstrap.sh              # всё по порядку, с вопросами
-#   bash dgx-claude-bootstrap.sh --diagnose   # только диагностика, ничего не ставит
-#   bash dgx-claude-bootstrap.sh --skip-xray  # если туннель уже поднят
-#   bash dgx-claude-bootstrap.sh --yes        # не переспрашивать (для повторных прогонов)
+#   bash dgx-claude-bootstrap.sh                 # всё по порядку, с вопросами
+#   bash dgx-claude-bootstrap.sh --diagnose      # только диагностика, ничего не ставит
+#   bash dgx-claude-bootstrap.sh --yes           # не переспрашивать (для повторных прогонов)
 #
-# ВАЖНО про географию (см. 09, «Предусловие»): скрипт правомерен, только если И страна,
-# где стоит DGX, И страна прокси (КЗ) обе есть в списках поддерживаемых у Anthropic и
-# OpenAI. Прокси меняет видимую точку выхода, а не статус страны. Скрипт не обходит
-# страновые ограничения и не должен для этого использоваться.
+# Пропуск фаз — любую можно выключить своим --skip-<фаза>:
+#   --skip-diagnose  --skip-xray  --skip-claude  --skip-litellm  --skip-configure  --skip-verify
+# Либо выполнить ТОЛЬКО нужные фазы:
+#   bash dgx-claude-bootstrap.sh --only claude,litellm        # только эти две
+#   bash dgx-claude-bootstrap.sh --only verify                # только сквозная проверка
+# Фазы: diagnose, xray, claude, litellm, configure, verify.
+#
+# ГЕОГРАФИЯ НЕ ПРОВЕРЯЕТСЯ. Точка выхода прокси может меняться и для работы не важна —
+# скрипт проверяет лишь, что через туннель есть выход в интернет, а не из какой он страны.
+# (Соответствие страновым требованиям сервисов — на ответственности пользователя; см. 09.)
 # =============================================================================
 set -euo pipefail
 
@@ -51,16 +56,45 @@ LITELLM_PORT=4000
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- флаги ------------------------------------------------------------------
-ASSUME_YES=0; DO_DIAGNOSE_ONLY=0; SKIP_XRAY=0; SKIP_CLAUDE=0; SKIP_LITELLM=0
-for a in "$@"; do case "$a" in
-  --yes|-y)      ASSUME_YES=1 ;;
-  --diagnose)    DO_DIAGNOSE_ONLY=1 ;;
-  --skip-xray)   SKIP_XRAY=1 ;;
-  --skip-claude) SKIP_CLAUDE=1 ;;
-  --skip-litellm) SKIP_LITELLM=1 ;;
-  -h|--help)     grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+# Любую фазу можно пропустить своим --skip-<фаза>. Фазы: diagnose, xray, claude,
+# litellm, configure, verify. Также --only <фаза[,фаза...]> — выполнить ТОЛЬКО их.
+ASSUME_YES=0; DO_DIAGNOSE_ONLY=0
+SKIP_DIAGNOSE=0; SKIP_XRAY=0; SKIP_CLAUDE=0; SKIP_LITELLM=0; SKIP_CONFIGURE=0; SKIP_VERIFY=0
+ONLY_PHASES=""
+next_is_only=0
+for a in "$@"; do
+  if [ "$next_is_only" = 1 ]; then ONLY_PHASES="$a"; next_is_only=0; continue; fi
+  case "$a" in
+  --yes|-y)         ASSUME_YES=1 ;;
+  --diagnose)       DO_DIAGNOSE_ONLY=1 ;;
+  --skip-diagnose)  SKIP_DIAGNOSE=1 ;;
+  --skip-xray)      SKIP_XRAY=1 ;;
+  --skip-claude)    SKIP_CLAUDE=1 ;;
+  --skip-litellm)   SKIP_LITELLM=1 ;;
+  --skip-configure) SKIP_CONFIGURE=1 ;;
+  --skip-verify)    SKIP_VERIFY=1 ;;
+  --only)           next_is_only=1 ;;
+  --only=*)         ONLY_PHASES="${a#--only=}" ;;
+  -h|--help)        grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *) echo "Неизвестный флаг: $a (см. --help)"; exit 2 ;;
-esac; done
+  esac
+done
+
+# --only pre-empts skips: всё, что НЕ перечислено в --only, помечается как skip.
+if [ -n "$ONLY_PHASES" ]; then
+  SKIP_DIAGNOSE=1; SKIP_XRAY=1; SKIP_CLAUDE=1; SKIP_LITELLM=1; SKIP_CONFIGURE=1; SKIP_VERIFY=1
+  IFS=', ' read -r -a _only_arr <<< "$ONLY_PHASES"
+  for p in "${_only_arr[@]}"; do case "$p" in
+    diagnose)  SKIP_DIAGNOSE=0 ;;
+    xray)      SKIP_XRAY=0 ;;
+    claude)    SKIP_CLAUDE=0 ;;
+    litellm)   SKIP_LITELLM=0 ;;
+    configure) SKIP_CONFIGURE=0 ;;
+    verify)    SKIP_VERIFY=0 ;;
+    "" ) ;;
+    *) echo "Неизвестная фаза в --only: $p (diagnose|xray|claude|litellm|configure|verify)"; exit 2 ;;
+  esac; done
+fi
 
 # --- вывод ------------------------------------------------------------------
 if [ -t 1 ]; then C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_B=$'\033[36m'; C_0=$'\033[0m'
@@ -212,21 +246,19 @@ UNIT
     ok "xray запущен (лог: $STATE_DIR/xray.log)"
   fi
 
-  # ждём, пока поднимется, и проверяем страну выхода
-  say "  проверяю, что выход — Казахстан"
-  local country=""
+  # ждём, пока поднимется, и проверяем, что через туннель есть выход наружу.
+  # Страну НЕ проверяем: точка выхода может меняться, и это не важно для работы.
+  say "  проверяю, что через туннель есть выход в интернет"
+  local egress_ip=""
   for _ in 1 2 3 4 5 6; do
     sleep 2
-    country="$(curl -fsS --max-time 10 -x "http://127.0.0.1:$HTTP_PORT" https://ipinfo.io/country 2>/dev/null | tr -d '[:space:]')" || country=""
-    [ -n "$country" ] && break
+    egress_ip="$(curl -fsS --max-time 10 -x "http://127.0.0.1:$HTTP_PORT" https://api.ipify.org 2>/dev/null | tr -d '[:space:]')" || egress_ip=""
+    [ -n "$egress_ip" ] && break
   done
-  if [ -z "$country" ]; then
+  if [ -z "$egress_ip" ]; then
     die "через туннель наружу не выходит — xray не поднялся или ссылка нерабочая (лог: journalctl --user -u dgx-xray)"
-  elif [ "$country" = "KZ" ]; then
-    ok "выход из страны: $country (Казахстан) — то, что нужно"
   else
-    warn "выход из страны: $country, а не KZ. Туннель работает, но точка выхода не та, что ты думал."
-    ask "Всё равно продолжить?" || die "остановлено по стране выхода"
+    ok "туннель работает, точка выхода: $egress_ip"
   fi
 }
 
@@ -347,11 +379,10 @@ phase_verify() {
   say "Фаза 5 — сквозная проверка"
   local fail=0
 
-  # 1. туннель и страна выхода
-  local country
-  country="$(curl -fsS --max-time 10 -x "http://127.0.0.1:$HTTP_PORT" https://ipinfo.io/country 2>/dev/null | tr -d '[:space:]')" || country=""
-  if [ "$country" = "KZ" ]; then ok "туннель: выход из KZ"
-  elif [ -n "$country" ]; then warn "туннель работает, но выход из $country (не KZ)"
+  # 1. туннель выходит наружу (страну НЕ проверяем — точка выхода может меняться)
+  local egress_ip
+  egress_ip="$(curl -fsS --max-time 10 -x "http://127.0.0.1:$HTTP_PORT" https://api.ipify.org 2>/dev/null | tr -d '[:space:]')" || egress_ip=""
+  if [ -n "$egress_ip" ]; then ok "туннель: выход наружу есть ($egress_ip)"
   else err "туннель не отвечает"; fail=1; fi
 
   # 2. LiteLLM жив
@@ -396,17 +427,17 @@ phase_verify() {
 
 # =============================================================================
 main() {
-  phase_diagnose
+  [ "$SKIP_DIAGNOSE" = 1 ] && warn "фаза диагностики пропущена (--skip-diagnose)" || phase_diagnose
   [ "$DO_DIAGNOSE_ONLY" = 1 ] && { echo; say "только диагностика — ничего не устанавливал"; exit 0; }
   echo
   say "Дальше скрипт будет СТАВИТЬ и НАСТРАИВАТЬ. Секреты сохранятся в $SECRETS (chmod 600)."
   ask "Продолжить установку?" || { say "остановлено по твоему выбору"; exit 0; }
 
   init_secrets
-  [ "$SKIP_XRAY" = 1 ]    && warn "фаза xray пропущена (--skip-xray)"    || phase_xray
-  [ "$SKIP_CLAUDE" = 1 ]  && warn "фаза Claude Code пропущена (--skip-claude)" || phase_claude
-  [ "$SKIP_LITELLM" = 1 ] && warn "фаза LiteLLM пропущена (--skip-litellm)" || phase_litellm
-  phase_configure
-  phase_verify
+  [ "$SKIP_XRAY" = 1 ]      && warn "фаза xray пропущена (--skip-xray)"           || phase_xray
+  [ "$SKIP_CLAUDE" = 1 ]    && warn "фаза Claude Code пропущена (--skip-claude)"  || phase_claude
+  [ "$SKIP_LITELLM" = 1 ]   && warn "фаза LiteLLM пропущена (--skip-litellm)"     || phase_litellm
+  [ "$SKIP_CONFIGURE" = 1 ] && warn "фаза configure пропущена (--skip-configure)" || phase_configure
+  [ "$SKIP_VERIFY" = 1 ]    && warn "фаза verify пропущена (--skip-verify)"        || phase_verify
 }
 main
