@@ -39,11 +39,23 @@ Homebrew → `/opt/homebrew/bin` (arm64) или `/usr/local/bin` (Intel); apt/dn
   `/plugin list`, `/plugin disable`.
 - Официальный маркетплейс — `claude-plugins-official` (напр. Slack: `/plugin install slack@claude-plugins-official`).
 
-## Два важных вывода для наших скриптов
+## Официальные плагины (ОБА существуют — исправлено 2026-07-23)
 
-- **Официального Telegram-плагина НЕТ** — ни в official, ни в community маркетплейсе. Telegram
-  подключается только community-мостами (см. [telegram-claude-code.md](telegram-claude-code.md)).
-- **Встроенного «codex-плагина» НЕТ** — Codex подключается как MCP-сервер
-  (см. [codex-plugin-claude-code.md](codex-plugin-claude-code.md)). Общий механизм MCP:
-  [mcp-quickstart](https://code.claude.com/docs/en/mcp-quickstart.md), синтаксис
-  `claude mcp add [-t stdio|http] [-s local|user|project] <name> <cmd|url> [args...]`.
+Управление плагинами из CLI (неинтерактивно): `claude plugin marketplace add <owner/repo>`,
+`claude plugin install <name>@<marketplace> -s user`, `claude plugin list`,
+`claude plugin uninstall`. Маркетплейс `claude-plugins-official` подключён по умолчанию.
+
+- **Официальный Telegram-плагин ЕСТЬ:**
+  [telegram@claude-plugins-official](https://github.com/anthropics/claude-plugins-official/tree/main/external_plugins/telegram)
+  (`claude plugin install telegram@claude-plugins-official`; нужен Bun). Детали —
+  [telegram-claude-code.md](telegram-claude-code.md).
+- **Официальный Codex-плагин ЕСТЬ (от OpenAI):**
+  [openai/codex-plugin-cc](https://github.com/openai/codex-plugin-cc)
+  (`claude plugin marketplace add openai/codex-plugin-cc` → `claude plugin install codex@openai-codex`).
+  Детали — [codex-plugin-claude-code.md](codex-plugin-claude-code.md).
+
+> ⚠️ Первая версия этого ресёрча ошибочно писала, что этих плагинов нет — из-за неполного
+> поиска (агенты не заглянули в `external_plugins/` маркетплейса и не нашли репо OpenAI). Оба
+> плагина реальны и официальны; скрипты `install-claude-telegram.sh` / `install-codex-plugin.sh`
+> ставят именно их. Общий механизм MCP (для нестандартных интеграций):
+> [mcp-quickstart](https://code.claude.com/docs/en/mcp-quickstart.md).

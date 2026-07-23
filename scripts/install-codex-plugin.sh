@@ -2,32 +2,35 @@
 # =============================================================================
 # install-codex-plugin.sh
 #
-# Подключает OpenAI Codex к Claude Code КАК MCP-СЕРВЕР.
+# Ставит ОФИЦИАЛЬНЫЙ плагин OpenAI Codex для Claude Code (openai/codex-plugin-cc).
+# Плагин добавляет в Claude Code слэш-команды Codex: /codex:review,
+# /codex:adversarial-review, /codex:rescue, /codex:status|result|cancel — code
+# review и делегирование задач Codex, не выходя из Claude Code.
 #
-# ВАЖНО (проверено по докам Claude Code и исходникам Codex, см.
-# ../research/codex-plugin-claude-code.md): отдельного «codex-плагина» для
-# Claude Code НЕ существует. Штатный способ интеграции — зарегистрировать Codex
-# как MCP-сервер. У Codex CLI для этого есть подкоманда `codex mcp-server`
-# («Start Codex as an MCP server (stdio)»), а Claude Code добавляет её через
-# `claude mcp add <имя> -- <команда>`.
+# Источник (проверено): https://github.com/openai/codex-plugin-cc
+#   /plugin marketplace add openai/codex-plugin-cc
+#   /plugin install codex@openai-codex
+# Здесь то же самое, но через CLI (`claude plugin ...`), неинтерактивно.
+#
+# Предусловия плагина: Node.js 18.18+, установленный и залогиненный Codex CLI,
+# подписка ChatGPT (в т.ч. Free) ИЛИ ключ OpenAI.
 #
 # Запуск:
-#   bash install-codex-plugin.sh              # зарегистрировать codex как MCP (scope user)
-#   bash install-codex-plugin.sh --scope project   # только в текущем проекте (.mcp.json)
-#   bash install-codex-plugin.sh --name codex-cli   # другое имя сервера
-#   bash install-codex-plugin.sh --remove     # снять регистрацию
-#
-# Идемпотентен: повторный запуск не плодит дубликаты.
+#   bash install-codex-plugin.sh                # marketplace add + install
+#   bash install-codex-plugin.sh --scope project
+#   bash install-codex-plugin.sh --remove
+# Идемпотентно.
 # =============================================================================
 set -euo pipefail
 
-NAME="codex"; SCOPE="user"; REMOVE=0
+MARKET_SRC="openai/codex-plugin-cc"
+MARKET_NAME="openai-codex"
+PLUGIN="codex@openai-codex"
+SCOPE="user"; REMOVE=0
 next=""
 for a in "$@"; do
-  if [ -n "$next" ]; then case "$next" in name) NAME="$a";; scope) SCOPE="$a";; esac; next=""; continue; fi
+  if [ -n "$next" ]; then case "$next" in scope) SCOPE="$a";; esac; next=""; continue; fi
   case "$a" in
-    --name)    next=name ;;
-    --name=*)  NAME="${a#--name=}" ;;
     --scope)   next=scope ;;
     --scope=*) SCOPE="${a#--scope=}" ;;
     --remove)  REMOVE=1 ;;
@@ -45,50 +48,54 @@ warn() { printf '%s\n' "  ${C_Y}!!${C_0}   $*"; }
 die()  { printf '%s\n' "  ${C_R}XX${C_0}   $*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# --- предусловия ------------------------------------------------------------
 have claude || die "Claude Code не найден. Сначала: bash install-claude-codex.sh --only claude"
-have codex  || die "Codex CLI не найден. Сначала: bash install-claude-codex.sh --only codex"
 ok "claude: $(claude --version 2>/dev/null | head -1)"
-ok "codex:  $(codex --version 2>/dev/null | head -1)"
 
-# codex mcp-server реально существует в этой версии?
-if ! codex --help 2>&1 | grep -q 'mcp-server'; then
-  warn "в этой версии Codex не видно подкоманды 'mcp-server' — проверь 'codex --help'."
-  warn "обнови Codex (bash install-claude-codex.sh --only codex) или сверься с ../research/codex-plugin-claude-code.md"
-  die "нет 'codex mcp-server' — регистрировать нечего"
-fi
-
-# --- снятие регистрации -----------------------------------------------------
+# --- remove -----------------------------------------------------------------
 if [ "$REMOVE" = 1 ]; then
-  say "Снимаю регистрацию MCP-сервера '$NAME'"
-  claude mcp remove "$NAME" -s "$SCOPE" 2>/dev/null && ok "снято" || warn "не был зарегистрирован в scope=$SCOPE"
+  say "Удаляю плагин $PLUGIN"
+  claude plugin uninstall "$PLUGIN" 2>/dev/null && ok "плагин снят" || warn "плагин не был установлен"
+  claude plugin marketplace remove "$MARKET_NAME" 2>/dev/null && ok "маркетплейс отключён" || true
   exit 0
 fi
 
-# --- регистрация (идемпотентно) ---------------------------------------------
-say "Регистрирую Codex как MCP-сервер '$NAME' (scope=$SCOPE, транспорт stdio)"
-if claude mcp list 2>/dev/null | grep -qE "^${NAME}[[:space:]:]"; then
-  ok "'$NAME' уже зарегистрирован — пропускаю (для замены: --remove, затем снова)"
+# --- предусловия плагина (предупреждаем, не блокируем) ----------------------
+if have codex; then ok "codex: $(codex --version 2>/dev/null | head -1)"
+else warn "Codex CLI не найден. Плагин может доустановить его сам (/codex:setup), либо: bash install-claude-codex.sh --only codex"; fi
+if have node; then
+  nv="$(node -v 2>/dev/null | sed 's/^v//; s/\..*//')"
+  [ "${nv:-0}" -ge 18 ] 2>/dev/null && ok "node: $(node -v)" || warn "Node < 18.18 — плагину нужен 18.18+"
+else warn "Node не найден — плагину нужен Node 18.18+"; fi
+
+# --- marketplace add (идемпотентно) -----------------------------------------
+say "Подключаю маркетплейс $MARKET_SRC"
+if claude plugin marketplace list 2>/dev/null | grep -q "$MARKET_NAME"; then
+  ok "маркетплейс уже подключён"
 else
-  # stdio-сервер: команда = 'codex mcp-server'
-  claude mcp add "$NAME" -s "$SCOPE" -- codex mcp-server \
-    && ok "добавлено: claude mcp add $NAME -- codex mcp-server" \
-    || die "claude mcp add упал — проверь синтаксис 'claude mcp add --help'"
+  claude plugin marketplace add "$MARKET_SRC" && ok "маркетплейс добавлен" \
+    || die "claude plugin marketplace add упал (проверь: claude plugin marketplace --help)"
+fi
+
+# --- install (идемпотентно) -------------------------------------------------
+say "Ставлю плагин $PLUGIN (scope=$SCOPE)"
+if claude plugin list 2>/dev/null | grep -qi 'codex'; then
+  ok "плагин codex уже установлен — пропускаю (обновить: claude plugin update $PLUGIN)"
+else
+  claude plugin install "$PLUGIN" -s "$SCOPE" && ok "плагин установлен" \
+    || die "claude plugin install упал"
 fi
 
 # --- проверка ---------------------------------------------------------------
 say "Проверка"
-if claude mcp list 2>/dev/null | grep -qE "^${NAME}[[:space:]:]"; then
-  ok "'$NAME' в списке MCP-серверов Claude Code"
-else
-  die "'$NAME' не появился в 'claude mcp list' — проверь вручную"
-fi
+claude plugin list 2>/dev/null | grep -qi 'codex' && ok "codex-плагин в списке установленных" \
+  || die "плагин не появился в 'claude plugin list'"
 
 echo
-say "Готово. Но чтобы Codex-MCP реально отвечал:"
-warn "Codex должен быть залогинен, иначе mcp-server не сможет обращаться к модели:"
-echo "     codex login                                   # ChatGPT OAuth"
-echo "     printenv OPENAI_API_KEY | codex login --with-api-key   # или по ключу"
+say "Готово. Дальше — в сессии Claude Code:"
+echo "  1. /reload-plugins            # подхватить плагин (или перезапусти claude)"
+echo "  2. /codex:setup               # проверка/доустановка Codex; при необходимости: !codex login"
+echo "  3. Команды: /codex:review · /codex:adversarial-review · /codex:rescue · /codex:status"
 echo
-echo "  В сессии Claude Code проверь: /mcp  (или 'claude mcp list'), сервер '$NAME' должен быть Connected."
+warn "Codex должен быть ЗАЛОГИНЕН (codex login или ключ), иначе команды плагина не отработают."
+echo "  Конфиг модели Codex: ~/.codex/config.toml (или .codex/config.toml в проекте)."
 echo "  Снять: bash $(basename "$0") --remove"
