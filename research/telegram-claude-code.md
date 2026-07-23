@@ -38,6 +38,11 @@ claude plugin install telegram@claude-plugins-official -s user
 # токен и сопряжение — уже в сессии (см. выше); скрипт токен не вписывает
 ```
 
+> ✅ **Проверено вживую 2026-07-23** (Claude Code 2.1.218): скрипт поставил Bun 1.3.14 и
+> `telegram@claude-plugins-official` **v0.0.6** (scope user, enabled); скиллы `configure` и
+> `access` на месте. Дальше `/telegram:configure <токен>` и `/telegram:access policy allowlist`
+> — уже в сессии (нужен реальный токен от @BotFather).
+
 **🔒 Безопасность (из README):** политика по умолчанию — `pairing` (любой написавший боту
 получит код сопряжения). **Сразу переводи в `allowlist`** по числовым `user_id`
 (из [@userinfobot](https://t.me/userinfobot)). Токен бота — пароль: не в git/чат/логи, утёк →

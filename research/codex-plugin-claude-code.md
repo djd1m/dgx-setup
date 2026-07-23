@@ -30,6 +30,11 @@ claude plugin install codex@openai-codex -s user
 claude plugin list          # проверить
 ```
 
+> ✅ **Проверено вживую 2026-07-23** (Claude Code 2.1.218): скрипт установил `codex@openai-codex`
+> **v1.0.6** (scope user, enabled); плагин даёт 11 скиллов — `review`, `adversarial-review`,
+> `rescue`, `status`, `result`, `cancel`, `setup`, `transfer` и др. `/codex:setup` и `!codex login`
+> выполняются уже в сессии.
+
 **Команды плагина:** `/codex:review` (стандартный ревью), `/codex:adversarial-review`
 (челлендж-ревью), `/codex:rescue` (делегировать задачу Codex), `/codex:status`,
 `/codex:result`, `/codex:cancel` (фоновые задачи).
