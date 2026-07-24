@@ -7,6 +7,14 @@
 > что на момент написания у Cloud.ru не было `/v1/messages`. **Проверено живым запросом 2026-07-24:
 > теперь `/v1/messages` ЕСТЬ** → Claude Code ходит напрямую. 02 оставлен как есть (путь через LiteLLM).
 
+> ⚠️ **Эндпоинт РАБОТАЕТ, но НЕ задокументирован (важно).** В официальной документации Cloud.ru
+> `/v1/messages` **нет** — описан только OpenAI `/v1/chat/completions`
+> ([api-ref](https://cloud.ru/docs/foundation-models/ug/topics/api-ref.html),
+> [quickstart](https://cloud.ru/docs/foundation-models/ug/topics/quickstart.html)). Работоспособность
+> `/v1/messages` установлена **только живым запросом** (2026-07-24). Следствие: недокументированный
+> эндпоинт Cloud.ru может изменить/убрать без предупреждения, официальной поддержки нет. Если однажды
+> начнёт отдавать 404 — откат на документированный путь через LiteLLM: [02-claude-code-cloudru.md](02-claude-code-cloudru.md).
+
 ## Что проверено вживую (2026-07-24)
 
 - `POST https://foundation-models.api.cloud.ru/v1/messages` отвечает в **Anthropic-формате**

@@ -8,7 +8,10 @@
 # с нужными переменными.
 #
 # ПРОВЕРЕНО живым запросом к Cloud.ru 2026-07-24: у foundation-models.api.cloud.ru
-# ЕСТЬ /v1/messages (Anthropic Messages API). Работает, например, с моделями
+# ЕСТЬ /v1/messages (Anthropic Messages API). ⚠️ Но в ОФИЦ. ДОКАХ Cloud.ru его НЕТ (только
+# OpenAI /v1/chat/completions) — эндпоинт недокументирован, может измениться/исчезнуть.
+# Если начнёт отдавать 404 — откат на LiteLLM-путь (см. for-ai/02-claude-code-cloudru.md).
+# Работает, например, с моделями
 # `deepseek-ai/DeepSeek-V4-Pro` (внутренняя, данные в РФ) и `anthropic/claude-haiku-4.5`
 # (внешний настоящий Claude). Это НЕ путь из 02-claude-code-cloudru.md (там LiteLLM,
 # т.к. на момент написания /v1/messages ещё не было) — это отдельный, прямой путь.
