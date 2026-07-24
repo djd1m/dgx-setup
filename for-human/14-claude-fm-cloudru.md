@@ -55,10 +55,22 @@ claude-fm -p 'привет'
 | `anthropic/claude-haiku-4.5` (и др.) | ⚠️ | **настоящий Claude, но данные уходят из РФ и дороже** |
 | **Qwen3.6-35B-A3B** | ❌ | по Anthropic-API даёт 403 «не подключена к проекту» — подключается в консоли Cloud.ru |
 
-Сменить модель:
+**Запустить с конкретной моделью — разово** (дефолт не меняется; флаг пробрасывается в Claude Code):
 ```bash
-bash scripts/install-claude-fm.sh --model moonshotai/Kimi-K2.6
+claude-fm --model "Qwen/Qwen3.5-397B-A17B"     # разово
+claude-fm --model "zai-org/GLM-5.2"            # разово
+claude-fm --model "moonshotai/Kimi-K2.6"       # разово
 ```
+
+**Сменить модель по умолчанию** (скрипт перепроверит её и сохранит), потом просто `claude-fm`:
+```bash
+bash scripts/install-claude-fm.sh --model "zai-org/GLM-5.2"
+claude-fm
+```
+
+> Если разовый `--model` вдруг не примется (у Claude Code может быть валидация имён под «родные»
+> Claude-модели) — используй переустановку с `--model`: там id пишется в обёртку и работает
+> гарантированно. id брать точный, из каталога (`/v1/models`), регистр важен.
 
 ## Что стоит знать (честно)
 
