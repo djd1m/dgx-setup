@@ -48,12 +48,21 @@ LiteLLM ──HTTPS_PROXY=http://127.0.0.1:10809──> xray-клиент ──
 ```bash
 git clone https://github.com/djd1m/dgx-setup.git && cd dgx-setup
 bash scripts/dgx-claude-bootstrap.sh --diagnose   # сухой прогон
-bash scripts/dgx-claude-bootstrap.sh              # полный
+bash scripts/dgx-claude-bootstrap.sh              # полный (API-ключ + LiteLLM)
+bash scripts/dgx-claude-bootstrap.sh --subscription  # подписка Claude Max/Pro: без LiteLLM/docker
 ```
+
+**Два режима.** По умолчанию — API-ключ через LiteLLM (учёт токенов, нужен docker). `--subscription`
+— подписка Claude Max/Pro: LiteLLM и docker **не нужны** (подписка = OAuth, учитывать нечего). В этом
+режиме Claude Code ходит через `HTTPS_PROXY` в туннель (не `ANTHROPIC_BASE_URL` — OAuth его не
+уважает); configure пишет `HTTPS_PROXY` в `settings.json`, verify пингует `api.anthropic.com` через
+туннель, вход — командой `claude`. И логин, и работа — через ОДИН туннель (консистентная страна =
+минимальный гео-риск, но приостановка за гео-несоответствие возможна — ответственность владельца).
 
 Предусловия окружения, которые скрипт проверяет, но не чинит сам:
 - `uname -m` = `aarch64` (на x86 предупредит и пойдёт, но это не GB10);
-- Docker Engine для aarch64 установлен и доступен (`docker ps` без sudo, либо рабочий `sudo`);
+- Docker Engine (**только для режима по умолчанию**; при `--subscription` docker не нужен) —
+  скрипт сам добавит юзера в группу docker и при отсутствии прав пойдёт через `sudo docker`;
 - открыт доступ к GitHub / ghcr.io / downloads.claude.ai **на время установки**.
 
 ---

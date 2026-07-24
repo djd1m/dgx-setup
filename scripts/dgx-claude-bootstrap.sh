@@ -20,9 +20,18 @@
 # Подробности и обоснование: ../for-human/09-proxy-accounting.md  и  10-bootstrap.md
 #
 # Запуск:
-#   bash dgx-claude-bootstrap.sh                 # всё по порядку, с вопросами
+#   bash dgx-claude-bootstrap.sh                 # всё по порядку (API-ключ + LiteLLM), с вопросами
+#   bash dgx-claude-bootstrap.sh --subscription  # ПОДПИСКА Claude Max/Pro: без LiteLLM и docker,
+#                                                #   Claude Code ходит через HTTPS_PROXY в туннель
 #   bash dgx-claude-bootstrap.sh --diagnose      # только диагностика, ничего не ставит
 #   bash dgx-claude-bootstrap.sh --yes           # не переспрашивать (для повторных прогонов)
+#
+# ДВА РЕЖИМА:
+#   • по умолчанию — API-ключ через LiteLLM (учёт токенов; нужен docker).
+#   • --subscription — подписка Claude Max/Pro: LiteLLM НЕ нужен (учитывать нечего), docker не нужен.
+#     Подписка = OAuth → ходит через HTTPS_PROXY (не ANTHROPIC_BASE_URL). И вход, и работа — через
+#     ОДИН туннель: страна выхода консистентна, гео-риск минимален. Всё равно возможна приостановка
+#     аккаунта за гео-несоответствие — на ответственности владельца подписки.
 #
 # Пропуск фаз — любую можно выключить своим --skip-<фаза>:
 #   --skip-diagnose  --skip-xray  --skip-claude  --skip-litellm  --skip-configure  --skip-verify
@@ -58,27 +67,32 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # --- флаги ------------------------------------------------------------------
 # Любую фазу можно пропустить своим --skip-<фаза>. Фазы: diagnose, xray, claude,
 # litellm, configure, verify. Также --only <фаза[,фаза...]> — выполнить ТОЛЬКО их.
-ASSUME_YES=0; DO_DIAGNOSE_ONLY=0
+ASSUME_YES=0; DO_DIAGNOSE_ONLY=0; SUBSCRIPTION=0
 SKIP_DIAGNOSE=0; SKIP_XRAY=0; SKIP_CLAUDE=0; SKIP_LITELLM=0; SKIP_CONFIGURE=0; SKIP_VERIFY=0
 ONLY_PHASES=""
 next_is_only=0
 for a in "$@"; do
   if [ "$next_is_only" = 1 ]; then ONLY_PHASES="$a"; next_is_only=0; continue; fi
   case "$a" in
-  --yes|-y)         ASSUME_YES=1 ;;
-  --diagnose)       DO_DIAGNOSE_ONLY=1 ;;
-  --skip-diagnose)  SKIP_DIAGNOSE=1 ;;
-  --skip-xray)      SKIP_XRAY=1 ;;
-  --skip-claude)    SKIP_CLAUDE=1 ;;
-  --skip-litellm)   SKIP_LITELLM=1 ;;
-  --skip-configure) SKIP_CONFIGURE=1 ;;
-  --skip-verify)    SKIP_VERIFY=1 ;;
-  --only)           next_is_only=1 ;;
-  --only=*)         ONLY_PHASES="${a#--only=}" ;;
-  -h|--help)        grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  --yes|-y)             ASSUME_YES=1 ;;
+  --diagnose)           DO_DIAGNOSE_ONLY=1 ;;
+  --subscription|--sub) SUBSCRIPTION=1 ;;
+  --skip-diagnose)      SKIP_DIAGNOSE=1 ;;
+  --skip-xray)          SKIP_XRAY=1 ;;
+  --skip-claude)        SKIP_CLAUDE=1 ;;
+  --skip-litellm)       SKIP_LITELLM=1 ;;
+  --skip-configure)     SKIP_CONFIGURE=1 ;;
+  --skip-verify)        SKIP_VERIFY=1 ;;
+  --only)               next_is_only=1 ;;
+  --only=*)             ONLY_PHASES="${a#--only=}" ;;
+  -h|--help)            grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *) echo "Неизвестный флаг: $a (см. --help)"; exit 2 ;;
   esac
 done
+
+# Режим подписки: LiteLLM не нужен (подписка = OAuth, не ключи; учитывать нечего).
+# Claude Code ходит через HTTPS_PROXY в туннель, а не через ANTHROPIC_BASE_URL.
+[ "$SUBSCRIPTION" = 1 ] && SKIP_LITELLM=1
 
 # --only pre-empts skips: всё, что НЕ перечислено в --only, помечается как skip.
 if [ -n "$ONLY_PHASES" ]; then
@@ -391,10 +405,43 @@ phase_litellm() {
 # Фаза 4. Настроить Claude Code на LiteLLM
 # =============================================================================
 phase_configure() {
-  say "Фаза 4 — привязываю Claude Code к LiteLLM"
   local sj="$HOME/.claude/settings.json"
   mkdir -p "$HOME/.claude"
   [ -f "$sj" ] || echo '{}' > "$sj"
+
+  if [ "$SUBSCRIPTION" = 1 ]; then
+    # --- Режим ПОДПИСКИ (Claude Max/Pro) -------------------------------------
+    # Подписка = OAuth, ходит по захардкоженным эндпоинтам на нескольких хостах;
+    # подменить их через ANTHROPIC_BASE_URL нельзя. HTTPS_PROXY ловит ВЕСЬ трафик,
+    # включая OAuth-логин, — поэтому и логин, и работа идут через один туннель.
+    say "Фаза 4 — Claude Code через подписку (HTTPS_PROXY → туннель), без LiteLLM"
+    python3 - "$sj" "$HTTP_PORT" <<'PY'
+import json, sys
+path, port = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as f: cfg = json.load(f)
+except Exception:
+    cfg = {}
+env = cfg.get("env", {})
+proxy = f"http://127.0.0.1:{port}"
+env["HTTPS_PROXY"] = proxy
+env["HTTP_PROXY"]  = proxy
+env["NO_PROXY"]    = "127.0.0.1,localhost"
+# подписка НЕ использует base-url/токен-шлюз — убираем, чтобы не мешали OAuth
+env.pop("ANTHROPIC_BASE_URL", None)
+env.pop("ANTHROPIC_AUTH_TOKEN", None)
+cfg["env"] = env
+with open(path, "w") as f: json.dump(cfg, f, indent=2, ensure_ascii=False)
+print("  записано в", path)
+PY
+    ok "settings.json: env HTTPS_PROXY/HTTP_PROXY → 127.0.0.1:$HTTP_PORT, NO_PROXY (base_url/token убраны)"
+    warn "и логин, и работа теперь идут через ОДИН прокси — это правильно (консистентная страна выхода)."
+    warn "если уже запущен фоновый супервизор Claude Code — перечитает не сразу: claude daemon stop --any"
+    return
+  fi
+
+  # --- Режим API-КЛЮЧА через LiteLLM (по умолчанию) --------------------------
+  say "Фаза 4 — привязываю Claude Code к LiteLLM"
   # правим только блок env, остальное не трогаем
   python3 - "$sj" "$LITELLM_PORT" "${LITELLM_MASTER_KEY:-}" <<'PY'
 import json, sys
@@ -431,6 +478,32 @@ phase_verify() {
   egress_ip="$(curl -fsS --max-time 10 -x "http://127.0.0.1:$HTTP_PORT" https://api.ipify.org 2>/dev/null | tr -d '[:space:]')" || egress_ip=""
   if [ -n "$egress_ip" ]; then ok "туннель: выход наружу есть ($egress_ip)"
   else err "туннель не отвечает"; fail=1; fi
+
+  # --- Режим ПОДПИСКИ: LiteLLM нет, проверяем достижимость Anthropic через прокси ---
+  if [ "$SUBSCRIPTION" = 1 ]; then
+    # api.anthropic.com через туннель: без ключа ждём 401/400 — это и есть «дошло».
+    local h
+    h="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -x "http://127.0.0.1:$HTTP_PORT" \
+         -X POST https://api.anthropic.com/v1/messages \
+         -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' \
+         -d '{"model":"claude-3-5-haiku-latest","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}' 2>/dev/null || echo 000)"
+    case "$h" in
+      401|400|403) ok "api.anthropic.com доступен через туннель (HTTP $h — дошло, нужен только вход по подписке)" ;;
+      000)         err "api.anthropic.com через туннель не ответил (туннель нестабилен?) — повтори или проверь xray"; fail=1 ;;
+      *)           warn "api.anthropic.com вернул HTTP $h — неожиданно, но соединение есть" ;;
+    esac
+    echo
+    if [ "$fail" = 0 ]; then
+      ok "ГОТОВО к входу по подписке. Claude Code настроен ходить через туннель (HTTPS_PROXY)."
+      echo "     Войди командой:  claude    (выбери вход по подписке — OAuth пойдёт через тот же туннель)"
+      echo "     Проверка после входа:  claude -p 'скажи привет'"
+      warn "и логин, и работа — через ОДИН прокси (Амстердам): консистентная страна = минимальный гео-риск."
+      warn "туннель на этой сети капризен (XHTTP) — если вход/запрос сорвётся, просто повтори."
+    else
+      die "проверка не прошла — см. выше (скорее всего, туннель нестабилен; повтори --only xray,verify)"
+    fi
+    return
+  fi
 
   # 2. LiteLLM жив
   if curl -fsS --max-time 5 "http://127.0.0.1:$LITELLM_PORT/health/liveliness" >/dev/null 2>&1; then
