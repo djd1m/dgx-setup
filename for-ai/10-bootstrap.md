@@ -32,13 +32,14 @@ LiteLLM ──HTTPS_PROXY=http://127.0.0.1:10809──> xray-клиент ──
    (через `ANTHROPIC_BASE_URL`), а уже LiteLLM уходит в туннель. LiteLLM — API-шлюз, а не
    forward-прокси; `HTTPS_PROXY=…:4000` для Claude Code — ошибка. Скрипт специально удаляет
    `HTTPS_PROXY`/`HTTP_PROXY` из `env` в `settings.json`.
-5. **Установщик Claude Code гео-блокируется — его скрипт тянет ЧЕРЕЗ ТУННЕЛЬ.** `claude.com`
-   в ряде регионов отдаёт HTML «App unavailable in region» (HTTP 200!) вместо `install.sh`;
-   запуск такого = «синтаксическая ошибка рядом с `<`». Поэтому фаза Claude качает установщик
-   и бинарь через прокси `127.0.0.1:$HTTP_PORT` и проверяет, что скачан скрипт, а не HTML
-   (проверено на живом DGX 2026-07-24). Прочие реестры (GitHub, ghcr.io) гео не блокируют —
-   их через КЗ гнать не нужно; их режет только российский DPI за Cloudflare (тогда — из
-   открытой сети).
+5. **Гео-блокируется только `claude.ai`, а `downloads.claude.ai` — нет.** `claude.ai/install.sh`
+   в ряде регионов отдаёт HTML «App unavailable in region» (HTTP 200!) — запуск такого =
+   «синтаксическая ошибка рядом с `<`». Но `claude.ai` всего лишь РЕДИРЕКТИТ на настоящий
+   установщик `https://downloads.claude.ai/claude-code-releases/bootstrap.sh` (CDN за Cloudflare),
+   и тот **доступен напрямую** (проверено на живом DGX 2026-07-24: `код=0`, реальный `#!/bin/bash`).
+   Поэтому фаза Claude бьёт **сразу в `downloads.claude.ai` напрямую** (туннель для установки не
+   нужен — XHTTP на сети DGX нестабилен для крупных загрузок), проверяет что скачан скрипт, а не
+   HTML; фолбэк — `claude.ai` через туннель. Прочие реестры (GitHub, ghcr.io) гео не блокируют.
 
 ---
 

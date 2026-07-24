@@ -269,17 +269,21 @@ phase_claude() {
   say "Фаза 2 — Claude Code"
   if have claude; then ok "уже установлен: $(claude --version 2>/dev/null | head -1)"; return; fi
 
-  # ВАЖНО: установщик тянем ЧЕРЕЗ ТУННЕЛЬ. claude.com в ряде регионов отдаёт HTML
-  # «App unavailable in region» (гео-блок по прямому IP DGX) вместо скрипта — если такое
-  # запустить, будет «синтаксическая ошибка рядом с <». Через туннель выход идёт с
-  # поддерживаемого IP. Тот же прокси нужен и самому установщику, чтобы скачать бинарь.
+  # КЛЮЧЕВОЕ (проверено на живом DGX 2026-07-24): гео-блокируется только claude.ai — он
+  # отдаёт HTML «App unavailable in region». Но он всего лишь РЕДИРЕКТИТ на настоящий
+  # установщик downloads.claude.ai/claude-code-releases/bootstrap.sh (CDN за Cloudflare),
+  # а тот ДОСТУПЕН НАПРЯМУЮ и не гео-блокируется. Бьём сразу в него — минуя claude.ai и
+  # минуя хлипкий туннель (XHTTP на сети DGX нестабилен для крупных загрузок). Бинарь Claude
+  # bootstrap.sh качает с того же downloads.claude.ai — тоже напрямую.
   local proxy="http://127.0.0.1:$HTTP_PORT"
   local dl_ok=0 script=/tmp/claude-install.sh
-  say "  качаю установщик через туннель ($proxy)"
-  if curl -fsSL --max-time 60 -x "$proxy" https://claude.ai/install.sh -o "$script" 2>/dev/null; then
+  local BOOTSTRAP="https://downloads.claude.ai/claude-code-releases/bootstrap.sh"
+  say "  качаю установщик напрямую: downloads.claude.ai"
+  if curl -fsSL --retry 3 --retry-delay 2 --max-time 90 "$BOOTSTRAP" -o "$script" 2>/dev/null; then
     dl_ok=1
-  elif curl -fsSL --max-time 30 https://claude.ai/install.sh -o "$script" 2>/dev/null; then
-    warn "через туннель не вышло — скачал напрямую (проверю содержимое)"; dl_ok=1
+  else
+    warn "напрямую не вышло — пробую claude.ai через туннель ($proxy), он сам редиректит на downloads"
+    curl -fsSL --max-time 90 -x "$proxy" https://claude.ai/install.sh -o "$script" 2>/dev/null && dl_ok=1
   fi
 
   # Убедиться, что скачали ИМЕННО shell-скрипт, а не гео-заглушку/HTML.
@@ -289,13 +293,12 @@ phase_claude() {
   fi
 
   if [ "$dl_ok" = 1 ]; then
-    # бинарь Claude Code тоже качается через туннель
-    HTTPS_PROXY="$proxy" HTTP_PROXY="$proxy" bash "$script" || die "официальный установщик Claude Code упал"
+    bash "$script" || die "официальный установщик Claude Code упал"
   elif have npm; then
-    warn "официальный установщик недоступен/гео-блок — ставлю через npm (тоже через туннель)"
+    warn "установщик недоступен — ставлю через npm (через туннель)"
     HTTPS_PROXY="$proxy" HTTP_PROXY="$proxy" npm install -g @anthropic-ai/claude-code || die "npm install claude-code упал"
   else
-    die "Claude Code не установить: установщик гео-блокируется по прямому IP, npm нет. Поставь Node/npm (тогда пойдёт через туннель) — или проверь, что туннель на 127.0.0.1:$HTTP_PORT жив."
+    die "Claude Code не установить: downloads.claude.ai и туннель недоступны, npm нет. Проверь сеть/туннель на 127.0.0.1:$HTTP_PORT или поставь Node/npm."
   fi
   have claude || { export PATH="$HOME/.local/bin:$PATH"; }
   have claude && ok "Claude Code установлен: $(claude --version 2>/dev/null | head -1)" \
