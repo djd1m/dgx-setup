@@ -268,13 +268,34 @@ UNIT
 phase_claude() {
   say "Фаза 2 — Claude Code"
   if have claude; then ok "уже установлен: $(claude --version 2>/dev/null | head -1)"; return; fi
-  if curl -fsSL --max-time 30 https://claude.ai/install.sh -o /tmp/claude-install.sh 2>/dev/null; then
-    bash /tmp/claude-install.sh || die "официальный установщик Claude Code упал"
+
+  # ВАЖНО: установщик тянем ЧЕРЕЗ ТУННЕЛЬ. claude.com в ряде регионов отдаёт HTML
+  # «App unavailable in region» (гео-блок по прямому IP DGX) вместо скрипта — если такое
+  # запустить, будет «синтаксическая ошибка рядом с <». Через туннель выход идёт с
+  # поддерживаемого IP. Тот же прокси нужен и самому установщику, чтобы скачать бинарь.
+  local proxy="http://127.0.0.1:$HTTP_PORT"
+  local dl_ok=0 script=/tmp/claude-install.sh
+  say "  качаю установщик через туннель ($proxy)"
+  if curl -fsSL --max-time 60 -x "$proxy" https://claude.ai/install.sh -o "$script" 2>/dev/null; then
+    dl_ok=1
+  elif curl -fsSL --max-time 30 https://claude.ai/install.sh -o "$script" 2>/dev/null; then
+    warn "через туннель не вышло — скачал напрямую (проверю содержимое)"; dl_ok=1
+  fi
+
+  # Убедиться, что скачали ИМЕННО shell-скрипт, а не гео-заглушку/HTML.
+  if [ "$dl_ok" = 1 ] && head -c 512 "$script" | grep -qiE '<!DOCTYPE|<html|app-unavailable-in-region'; then
+    warn "установщик вернул HTML (гео-блок «App unavailable in region»), а не скрипт — не запускаю"
+    dl_ok=0
+  fi
+
+  if [ "$dl_ok" = 1 ]; then
+    # бинарь Claude Code тоже качается через туннель
+    HTTPS_PROXY="$proxy" HTTP_PROXY="$proxy" bash "$script" || die "официальный установщик Claude Code упал"
   elif have npm; then
-    warn "официальный установщик недоступен — ставлю через npm"
-    npm install -g @anthropic-ai/claude-code || die "npm install claude-code упал"
+    warn "официальный установщик недоступен/гео-блок — ставлю через npm (тоже через туннель)"
+    HTTPS_PROXY="$proxy" HTTP_PROXY="$proxy" npm install -g @anthropic-ai/claude-code || die "npm install claude-code упал"
   else
-    die "не удалось установить Claude Code: нет ни доступа к claude.ai, ни npm"
+    die "Claude Code не установить: установщик гео-блокируется по прямому IP, npm нет. Поставь Node/npm (тогда пойдёт через туннель) — или проверь, что туннель на 127.0.0.1:$HTTP_PORT жив."
   fi
   have claude || { export PATH="$HOME/.local/bin:$PATH"; }
   have claude && ok "Claude Code установлен: $(claude --version 2>/dev/null | head -1)" \
