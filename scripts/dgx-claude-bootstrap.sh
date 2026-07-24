@@ -486,11 +486,12 @@ phase_verify() {
     h="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -x "http://127.0.0.1:$HTTP_PORT" \
          -X POST https://api.anthropic.com/v1/messages \
          -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' \
-         -d '{"model":"claude-3-5-haiku-latest","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}' 2>/dev/null || echo 000)"
+         -d '{"model":"claude-3-5-haiku-latest","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}' 2>/dev/null)"
+    h="${h:-000}"
     case "$h" in
-      401|400|403) ok "api.anthropic.com доступен через туннель (HTTP $h — дошло, нужен только вход по подписке)" ;;
-      000)         err "api.anthropic.com через туннель не ответил (туннель нестабилен?) — повтори или проверь xray"; fail=1 ;;
-      *)           warn "api.anthropic.com вернул HTTP $h — неожиданно, но соединение есть" ;;
+      200|400|401|403) ok "api.anthropic.com доступен через туннель (HTTP $h — дошло, нужен только вход по подписке)" ;;
+      000)             err "api.anthropic.com через туннель НЕ ответил (HTTP 000 — туннель не пропускает трафик). Проверь xray/сеть."; fail=1 ;;
+      *)               warn "api.anthropic.com вернул HTTP $h — соединение есть, но код неожиданный" ;;
     esac
     echo
     if [ "$fail" = 0 ]; then
