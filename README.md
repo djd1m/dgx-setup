@@ -42,7 +42,8 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 [11 Три агента на хосте](for-ai/11-multi-agent-host.md) ·
 [12 Облачный мозг и роутинг](for-ai/12-cloud-brain-routing.md) ·
 [13 Hermes-исполнитель](for-ai/13-hermes-executor.md) ·
-[14 Claude Code ⟶ Cloud.ru напрямую](for-ai/14-claude-fm-cloudru.md)
+[14 Claude Code ⟶ Cloud.ru напрямую](for-ai/14-claude-fm-cloudru.md) ·
+[15 LM Studio](for-ai/15-lm-studio.md)
 
 ## Главная идея: DGX — это сервер инференса, а не клиент чужого API
 
@@ -111,6 +112,7 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 | 12 | [Облачный мозг Cloud.ru и маршрутизация](for-human/12-cloud-brain-routing.md) | выбор облачной FM (мозг + русский), fallback-routing, LiteLLM | — |
 | 13 | [Hermes как автономный исполнитель](for-human/13-hermes-executor.md) | Hermes сам гонит инструкции: аппрувы, мозг, Brave, усиления доков | 04, 12 |
 | 14 | [Claude Code через Cloud.ru напрямую](for-human/14-claude-fm-cloudru.md) | Anthropic API Cloud.ru: команда `claude-fm`, без LiteLLM/docker/туннеля | — |
+| 15 | [LM Studio на DGX Spark](for-human/15-lm-studio.md) | headless-демон llmster рядом с Ollama: когда он лучше, когда нет | 00 |
 
 ## Утилиты в `scripts/` (не только DGX)
 
@@ -122,6 +124,7 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 |---|---|---|
 | [`install-claude-codex.sh`](scripts/install-claude-codex.sh) | Ставит Claude Code + Codex на любой ОС оптимальным способом (native-инсталлер без Node, npm-фолбэк). `--only claude\|codex`, `--diagnose` | [claude-code-install](research/claude-code-install.md), [codex-install](research/codex-install.md) |
 | [`install-claude-fm.sh`](scripts/install-claude-fm.sh) | Настраивает команду `claude-fm` — Claude Code на моделях Cloud.ru через их Anthropic API напрямую (без LiteLLM/docker/туннеля). Самодиагностика + подбор модели | [14-claude-fm-cloudru](for-human/14-claude-fm-cloudru.md) |
+| [`install-lm-studio.sh`](scripts/install-lm-studio.sh) | Ставит LM Studio headless (демон llmster + `lms`) на DGX Spark: OpenAI-сервер на 1234 рядом с Ollama. `--model`, `--proxy`, `--autostart`, `--diagnose`, `--remove` | [lm-studio-vs-ollama-dgx](research/lm-studio-vs-ollama-dgx.md) |
 | [`install-codex-plugin.sh`](scripts/install-codex-plugin.sh) | Ставит **официальный** Codex-плагин OpenAI ([openai/codex-plugin-cc](https://github.com/openai/codex-plugin-cc)) через `claude plugin install codex@openai-codex`. Команды `/codex:review`, `/codex:rescue` и др. | [codex-plugin-claude-code](research/codex-plugin-claude-code.md) |
 | [`install-claude-telegram.sh`](scripts/install-claude-telegram.sh) | Ставит **официальный** Telegram-плагин ([telegram@claude-plugins-official](https://github.com/anthropics/claude-plugins-official/tree/main/external_plugins/telegram), нужен Bun). Бот = доступ к Claude Code → обязателен `/telegram:access policy allowlist` | [telegram-claude-code](research/telegram-claude-code.md) |
 | [`dgx-claude-bootstrap.sh`](scripts/dgx-claude-bootstrap.sh) | DGX → Claude Code через VLESS-прокси + LiteLLM. Любую фазу можно пропустить (`--skip-*` / `--only`); гео-точка выхода не проверяется | [10-bootstrap](for-human/10-bootstrap.md) |
