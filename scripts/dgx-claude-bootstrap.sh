@@ -310,9 +310,32 @@ phase_claude() {
 # =============================================================================
 DOCKER=""
 detect_docker() {
-  if docker ps >/dev/null 2>&1; then DOCKER="docker"
-  elif sudo -n docker ps >/dev/null 2>&1; then DOCKER="sudo docker"
-  else die "docker недоступен без прав. Добавь себя в группу docker (sudo usermod -aG docker $USER; перелогинься) или запусти скрипт с рабочим sudo."; fi
+  # 1) прямой доступ (пользователь уже в группе docker)
+  if docker ps >/dev/null 2>&1; then DOCKER="docker"; return; fi
+  # 2) docker вообще установлен?
+  if ! command -v docker >/dev/null 2>&1; then
+    die "docker не установлен. Ubuntu/DGX OS: sudo apt-get install -y docker.io && sudo systemctl enable --now docker && sudo usermod -aG docker $USER (потом перелогинься)."
+  fi
+  # 3) есть доступ через sudo? (демон может быть просто не запущен)
+  if sudo -n docker ps >/dev/null 2>&1 || sudo docker ps >/dev/null 2>&1; then
+    DOCKER="sudo docker"
+  else
+    warn "docker есть, но не отвечает — пробую запустить демон"
+    sudo systemctl enable --now docker 2>/dev/null || true
+    if sudo docker ps >/dev/null 2>&1; then DOCKER="sudo docker"
+    else die "docker установлен, но недоступен даже через sudo. Проверь: sudo systemctl status docker"; fi
+  fi
+  # 4) добавить пользователя в группу docker — чтобы БУДУЩИЕ прогоны шли без sudo.
+  #    (в текущем прогоне это не поможет: группа применяется только в новой сессии,
+  #    поэтому сейчас работаем через 'sudo docker'.)
+  if ! id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+    say "  добавляю $USER в группу docker (для будущих прогонов без sudo)"
+    if sudo usermod -aG docker "$USER" 2>/dev/null; then
+      warn "добавлен в группу docker — применится после перелогина (сейчас использую sudo docker)"
+    else
+      warn "не смог добавить в группу docker — продолжаю через sudo docker"
+    fi
+  fi
 }
 
 phase_litellm() {
