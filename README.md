@@ -43,7 +43,8 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 [12 Облачный мозг и роутинг](for-ai/12-cloud-brain-routing.md) ·
 [13 Hermes-исполнитель](for-ai/13-hermes-executor.md) ·
 [14 Claude Code ⟶ Cloud.ru напрямую](for-ai/14-claude-fm-cloudru.md) ·
-[15 LM Studio](for-ai/15-lm-studio.md)
+[15 LM Studio](for-ai/15-lm-studio.md) ·
+[16 tmux](for-ai/16-tmux.md)
 
 ## Главная идея: DGX — это сервер инференса, а не клиент чужого API
 
@@ -113,6 +114,7 @@ OpenClaw, плюс подключение к Cloud.ru Foundation Models.
 | 13 | [Hermes как автономный исполнитель](for-human/13-hermes-executor.md) | Hermes сам гонит инструкции: аппрувы, мозг, Brave, усиления доков | 04, 12 |
 | 14 | [Claude Code через Cloud.ru напрямую](for-human/14-claude-fm-cloudru.md) | Anthropic API Cloud.ru: команда `claude-fm`, без LiteLLM/docker/туннеля | — |
 | 15 | [LM Studio на DGX Spark](for-human/15-lm-studio.md) | headless-демон llmster рядом с Ollama: когда он лучше, когда нет | 00 |
+| 16 | [tmux: сессия, которая возвращается после перезагрузки](for-human/16-tmux.md) | терминал для Claude Code/Codex по SSH: обрыв связи, linger, systemd-юнит; честно про то, чего tmux не может | — |
 
 ## Утилиты в `scripts/` (не только DGX)
 
